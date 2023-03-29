@@ -1,8 +1,14 @@
-use hyper::{Body, Error, Response, Server};
-use hyper::service::{make_service_fn, service_fn};
 use crate::esi::EsiData;
 use rfesi::prelude::*;
-
+//use rand::Rng;
+use std::net::SocketAddr;
+use std::error::Error;
+use hyper::body::Buf;
+use hyper::server::conn::Http;
+use hyper::service::service_fn;
+use hyper::{header, Body, Method, Request, Response, StatusCode};
+use serde::{Deserialize, Serialize};
+use tokio::net::TcpListener;
 pub struct AuthService{
     data: EsiData,
     esi: Option<Esi>,
@@ -27,29 +33,77 @@ impl AuthService{
         Ok(true)
     }
 
-    pub async fn create_server(self) {
-        let (url,_random_data) = self.esi.unwrap().get_authorize_url().unwrap();
-        let _resp = open::that(url);
-        // Construct our SocketAddr to listen on...
-        let addr = ([127, 0, 0, 1], 56123).into();
+    pub async fn create_server(self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let addr = SocketAddr::from(([127, 0, 0, 1], 56123));
+    
+        let listener = TcpListener::bind(addr).await?;
+        println!("Listening on http://{}", addr);
 
-        // And a MakeService to handle each connection...
-        let make_svc = make_service_fn(|_| async {
-            Ok::<_, Error>(service_fn(|_req| async {
-                Ok::<_, Error>(Response::new(Body::from("Telescope")))
-            }))
-        });
-
-        // Then bind and serve...
-        let server = Server::bind(&addr)
-            .serve(make_svc);
-
-        // Run forever-ish...
-        if let Err(e) = server.await {
-            eprintln!("server error: {}", e);
+        loop {
+            let (stream, _) = listener.accept().await?;
+    
+            tokio::task::spawn(async move {
+                if let Err(err) = Http::new().serve_connection(stream, service_fn(Self::auth_handler)).await {
+                    println!("Error serving connection: {:?}", err);
+                }
+            });
         }
+        Ok(())
+    }
 
-        //server.
+    pub async fn auth_handler( req: Request<Body>) -> Result<Response<Body>, Box<dyn Error + Send + Sync>> {
+        
+
+        match (req.method(), req.uri().path()) {
+            (&Method::GET, "/login") => {
+                let path = req.uri().path_and_query();
+                if let Some(pnq) = path{
+                    let query = pnq.query().to_owned();
+                    let query_segments = query.unwrap().split("&").collect::<Vec<&str>>();
+                    for param in query_segments {
+                        let item = param.split("=").collect::<Vec<&str>>();
+                        if item[0] == "code" {
+                            
+                        }
+                    }
+                    if query_segments.len() <= 2 {
+                        let res = get_car_list();
+                        return Ok(res);
+                    }
+                    let car_id = path_segments[2];
+                    if car_id.trim().is_empty() {
+                        let res = get_car_list();
+                        return Ok(res);
+                    } else {
+                        // code to fill whenever path is /cars/:id
+                    }
+                }  
+            },
+    
+            (&Method::POST, "/login") => Ok(Response::new(Body::from("POST login"))),
+    
+            // Return the 404 Not Found for other routes.
+            _ => {
+                let mut not_found = Response::default();
+                *not_found.status_mut() = StatusCode::NOT_FOUND;
+                Ok(not_found)
+            }
+        }
+    }
+
+    fn get_car_list() -> Response<Body> {
+        let resp = String::from("<html><head></head><body><h1>OK</h1></body></html>");
+    
+        match serde_json::to_string(&resp) {
+            Ok(json) => Response::builder()
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(json))
+                .unwrap(),
+            Err(_) => Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(INTERNAL_SERVER_ERROR.into())
+                .unwrap(),
+        }
     }
 }
 
