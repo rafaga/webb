@@ -17,14 +17,13 @@ mod tests_database {
         }
     }
 
-    /* 
     #[test]
-    fn test_uuidv5_url() {
-        let uuid = generate_uuid5(NamespaceType::URL, "woah!".to_string());
-        //4e8693aa-3cfa-53cd-acc5-6f94fca1c983
-        assert_eq!(uuid,"4e8693aa-3cfa-53cd-acc5-6f94fca1c983");
+    fn test_web_auth() {
+        
     }
 
+
+    /* 
     #[test]
     fn test_uuidv5_oid() {
         let uuid = generate_uuid5(NamespaceType::OID, "woah!".to_string());
