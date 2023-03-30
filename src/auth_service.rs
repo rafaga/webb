@@ -1,11 +1,11 @@
-
-
-use hyper::service::Service;
-use hyper::{Body, Method, Request, Response, Server, StatusCode};
-
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::net::SocketAddr;
+
+use hyper::service::Service;
+use hyper::{Request, Response};
+use hyper::{Body, Method,  Server, StatusCode};
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safetly.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
@@ -102,14 +102,17 @@ impl<T> Service<T> for MakeSvc {
     }
 }
 
-pub fn open_auth_service() -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    let addr = ([127, 0, 0, 1], 56123).into();
+#[tokio::main]
+pub async fn open_auth_service() -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    let addr: SocketAddr = ([127, 0, 0, 1], 56123).into();
     
     let server = Server::bind(&addr).serve(MakeSvc::new(0));
     println!("Listening on http://{}", addr);
+    
+    let handle = tokio::join!(async move {
+        server.await
+    });
 
-    async {
-        let k = server.await;
-    };
+
     Ok(true)
 }

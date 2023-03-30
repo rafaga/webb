@@ -1,11 +1,10 @@
 #[cfg(test)]
 mod tests_database {
-    use webb::auth_service::{AuthService, self};
-    use webb::database::{Database,Character};
+    use webb::auth_service;
+    use webb::database::Database;
     use std::path::Path;
     use std::fs;
-    use webb::esi::EsiData;
-    use webb::manager::EsiManager;
+    use webb::esi::EsiManager;
 
     #[test]
     fn test_database_creation() {

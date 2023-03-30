@@ -1,22 +1,28 @@
+pub mod data;
 
-pub struct EsiData{
-    pub user_agent:String,
-    pub client_id:String,
-    pub secret_key: String,
-    pub callback_url: String,
-    pub authorize_url: String,
-    pub random_state: String,
+use crate::esi::data::Data;
+use rfesi::prelude::*;
+
+pub struct EsiManager{
+    data: Data,
+    pub esi: Esi,
 }
 
-impl EsiData{
+impl EsiManager {
+
     pub fn new() -> Self {
-        EsiData { 
-            user_agent: String::new(), 
-            client_id: String::new(), 
-            secret_key: String::new(), 
-            callback_url: String::new(),
-            random_state: String::new(),
-            authorize_url: String::new(),
+        let data = Data::new();
+
+        let esi = EsiBuilder::new()
+            .user_agent(&data.user_agent)
+            .client_id(&data.client_id)
+            .client_secret(&data.secret_key)
+            .callback_url(&data.callback_url)
+            .build().unwrap();
+
+        EsiManager {
+            data,
+            esi,
         }
     }
 }
