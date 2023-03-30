@@ -2,7 +2,6 @@ use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
 use chrono::prelude::*;
-use chrono::offset::LocalResult;
 
 pub struct Database{
     pub version: i64,

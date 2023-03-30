@@ -1,8 +1,11 @@
 #[cfg(test)]
 mod tests_database {
+    use webb::auth_service::{AuthService, self};
     use webb::database::{Database,Character};
     use std::path::Path;
     use std::fs;
+    use webb::esi::EsiData;
+    use webb::manager::EsiManager;
 
     #[test]
     fn test_database_creation() {
@@ -19,7 +22,15 @@ mod tests_database {
 
     #[test]
     fn test_web_auth() {
-        
+        let esimon = EsiManager::new();
+        let (url,rand) = esimon.esi.get_authorize_url().unwrap();
+        match open::that(&url){
+            Ok(()) => {
+                assert!(auth_service::open_auth_service().unwrap());
+            },
+            Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
+        }
+
     }
 
 
