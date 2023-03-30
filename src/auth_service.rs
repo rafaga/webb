@@ -13,7 +13,7 @@ static NOT_VALID: &[u8] = b"Invalid Request";
 pub struct AuthService{
     characterid: usize,
     code: usize,
-    random: usize,
+    state: usize,
 }
 
 impl Service<Request<Body>> for AuthService {
@@ -37,8 +37,8 @@ impl Service<Request<Body>> for AuthService {
                             "code" => {
                                 self.code = p[1].parse().unwrap();
                             },
-                            "random" => {
-                                self.random = p[1].parse().unwrap();
+                            "state" => {
+                                self.state = p[1].parse().unwrap();
                             },
                             _ => ()
                         }
@@ -66,8 +66,8 @@ impl Service<Request<Body>> for AuthService {
 
 struct MakeSvc {
     pub characterid: usize,
-    pub code: usize,
-    pub random: usize,
+    pub code: usize, // String
+    pub state: usize, // String
 
 }
 
@@ -76,7 +76,7 @@ impl MakeSvc {
         MakeSvc {
             characterid,
             code: 0,
-            random: 0,
+            state: 0,
         }
     }
 }
@@ -93,11 +93,11 @@ impl<T> Service<T> for MakeSvc {
     fn call(&mut self, _: T) -> Self::Future {
         let characterid = self.characterid;
         let code = self.code;
-        let random = self.random;
-        let fut = async move { Ok(AuthService{ characterid, code, random}) };
+        let state = self.state;
+        let fut = async move { Ok(AuthService{ characterid, code, state}) };
         self.characterid = characterid;
         self.code = code;
-        self.random = random;
+        self.state = state;
         Box::pin(fut)
     }
 }
