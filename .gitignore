@@ -2,3 +2,4 @@
 /Cargo.lock
 .vscode/
 tests/tests.db
+src/esi/data.rs
