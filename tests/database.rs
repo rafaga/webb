@@ -10,26 +10,26 @@ mod tests_database {
     fn test_database_creation() {
         let path = Path::new("tests/tests.db");
         if path.exists() && path.is_file() {
-            fs::remove_file("tests/tests-create.db");
+            let _ = fs::remove_file("tests/tests-create.db");
         }
         let mut  db = Database::new("tests/tests.db".to_string());
         if let Ok(true) = db.open() {
             assert!(path.exists());
-            fs::remove_file("tests/tests-create.db");
+            let _ = fs::remove_file("tests/tests-create.db");
         }
     }
 
     #[test]
     fn test_web_auth() {
         let esimon = EsiManager::new();
-        let (url,rand) = esimon.esi.get_authorize_url().unwrap();
+        let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
         match open::that(&url){
             Ok(()) => {
-                assert!(auth_service::open_auth_service().unwrap());
+                let result = auth_service::open_auth_service().unwrap();
+                assert_ne!(result.0.as_str(),"");
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
-
     }
 
 

@@ -7,7 +7,9 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.24"
+futures = "0.3.28"
 hyper = { version = "0.14.25", features = ["server", "runtime"] }
+lazy_static = "1.4.0"
 open = "4.0.1"
 rfesi = "0.15.0"
 rusqlite = { version = "0.28.0", features = ["bundled-sqlcipher", "backup", "blob", "sqlcipher"] }

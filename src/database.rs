@@ -47,7 +47,7 @@ impl Database{
         Ok(true)
     }
 
-    pub fn add_character(mut self, character:Character) -> Result<bool,Error> {
+    pub fn add_character(self, character:Character) -> Result<bool,Error> {
         if let None = self.connection{
             return Ok(false)
         }
