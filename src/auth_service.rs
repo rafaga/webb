@@ -3,7 +3,6 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::net::SocketAddr;
 
-use std::sync::Arc;
 use hyper::service::Service;
 use hyper::{Request, Response};
 use hyper::{Body, Method,  Server, StatusCode};
@@ -12,7 +11,7 @@ static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{
 static NOT_VALID: &[u8] = b"Invalid Request";
 
 pub struct AuthService{
-    tx: Arc<tokio::sync::oneshot::Sender<(String,String)>>,
+    tx: tokio::sync::oneshot::Sender<(String,String)>,
 }
 
 impl Service<Request<Body>> for AuthService {
@@ -44,8 +43,8 @@ impl Service<Request<Body>> for AuthService {
                         }
                     }
                     if !message.0.is_empty() && !message.1.is_empty() {
-                        let tx = Arc::clone(&self.tx);
-                        tx.send(message);
+                        let tx = self.tx;
+                        tx.send(message.clone());
                         Ok(Response::builder()
                         .status(StatusCode::OK)
                         .body(CONFIRM.into())
@@ -74,11 +73,11 @@ impl Service<Request<Body>> for AuthService {
 }
 
 struct MakeSvc {
-    tx: Arc<tokio::sync::oneshot::Sender<(String,String)>>,
+    tx: tokio::sync::oneshot::Sender<(String,String)>,
 }
 
 impl MakeSvc {
-    pub fn new(sender: Arc<tokio::sync::oneshot::Sender<(String,String)>>) -> Self {
+    pub fn new(sender: tokio::sync::oneshot::Sender<(String,String)>) -> Self {
         MakeSvc {
             tx: sender
         }
@@ -95,7 +94,7 @@ impl<T> Service<T> for MakeSvc {
     }
 
     fn call(&mut self, _: T) -> Self::Future {
-        let tx = Arc::clone(&self.tx);
+        let tx = self.tx;
         let fut = async move { Ok(AuthService{ tx }) };
         Box::pin(fut)
     }
@@ -105,9 +104,8 @@ impl<T> Service<T> for MakeSvc {
 pub async fn open_auth_service() -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let addr: SocketAddr = ([127, 0, 0, 1], 56123).into();
     let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
-    let shared_tx = Arc::new(tx);
     let server = Server::bind(&addr)
-        .serve(MakeSvc::new(Arc::clone(&shared_tx)))
+        .serve(MakeSvc::new(tx))
         .with_graceful_shutdown(async {
             rx.await.ok();
         });
