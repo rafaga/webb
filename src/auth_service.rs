@@ -6,14 +6,15 @@ use std::net::SocketAddr;
 use hyper::service::Service;
 use hyper::{Request, Response};
 use hyper::{Body, Method,  Server, StatusCode};
+use tokio::task;
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safetly.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
 
 pub struct AuthService{
     characterid: usize,
-    code: usize,
-    state: usize,
+    code: String,
+    state: String,
 }
 
 impl Service<Request<Body>> for AuthService {
@@ -35,10 +36,10 @@ impl Service<Request<Body>> for AuthService {
                         let p = param.split("=").collect::<Vec<&str>>();
                         match p[0] {
                             "code" => {
-                                self.code = p[1].parse().unwrap();
+                                self.code = p[1].to_string();
                             },
                             "state" => {
-                                self.state = p[1].parse().unwrap();
+                                self.state = p[1].to_string();
                             },
                             _ => ()
                         }
@@ -66,8 +67,8 @@ impl Service<Request<Body>> for AuthService {
 
 struct MakeSvc {
     pub characterid: usize,
-    pub code: usize, // String
-    pub state: usize, // String
+    pub code: String, // String
+    pub state: String, // String
 
 }
 
@@ -75,8 +76,8 @@ impl MakeSvc {
     pub fn new(characterid: usize) -> Self {
         MakeSvc {
             characterid,
-            code: 0,
-            state: 0,
+            code: String::new(),
+            state: String::new(),
         }
     }
 }
@@ -92,12 +93,9 @@ impl<T> Service<T> for MakeSvc {
 
     fn call(&mut self, _: T) -> Self::Future {
         let characterid = self.characterid;
-        let code = self.code;
-        let state = self.state;
+        let code = self.code.clone();
+        let state = self.state.clone();
         let fut = async move { Ok(AuthService{ characterid, code, state}) };
-        self.characterid = characterid;
-        self.code = code;
-        self.state = state;
         Box::pin(fut)
     }
 }
@@ -109,10 +107,10 @@ pub async fn open_auth_service() -> Result<bool, Box<dyn std::error::Error + Sen
     let server = Server::bind(&addr).serve(MakeSvc::new(0));
     println!("Listening on http://{}", addr);
     
-    let handle = tokio::join!(async move {
+    let handle = tokio::spawn(async move{
         server.await
     });
 
-
+    let k = handle.await;
     Ok(true)
 }
