@@ -9,8 +9,8 @@ pub struct EsiManager{
 
 impl EsiManager {
 
-    pub fn new() -> Self {
-        let data = Data::new();
+    pub fn new(data: Data) -> Self {
+        //let data = Data::new();
         
         let scope = vec!["publicData","esi-alliances.read_contacts.v1","esi-characters.read_chat_channels.v1",
             "esi-characters.read_contacts.v1","esi-characters.read_fatigue.v1","esi-characters.read_standings.v1",
