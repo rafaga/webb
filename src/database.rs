@@ -3,6 +3,10 @@ use rusqlite::*;
 use uuid::Uuid;
 use chrono::prelude::*;
 
+pub enum TelescopeDbError{
+    NoConnection,
+}
+
 pub struct Database{
     pub version: i64,
     pub path: String,
@@ -11,6 +15,7 @@ pub struct Database{
 }
 
 impl Database{
+
     pub fn new(database: String) -> Self{
         Database {  
             version: 0,
@@ -24,8 +29,8 @@ impl Database{
         let mut query;
         let conn = self.connection.as_ref().unwrap();
         query = String::from("CREATE TABLE eveCharacter (characterId INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
-        query += " corporationId INTEGER NOT NULL, allianceId INTEGER NOT NULL, code INTEGER NOT NULL";
-        query += " lastLogon DATETIME NOT NULL)";
+        query += " corporationId INTEGER NOT NULL, allianceId INTEGER NOT NULL, token VARCHAR(255) NOT NULL";
+        query += " lastLogon DATETIME NOT NULL, expiration DATETIME)";
         conn.execute(query.as_str(),())?;
         query = String::from("CREATE TABLE metadata (id INTEGER PRIMARY KEY,value VARCHAR(255) NOT NULL);");
         conn.execute(query.as_str(),())?;
@@ -53,11 +58,11 @@ impl Database{
         }
         let conn = self.connection.unwrap();
         let mut query = String::from("INSERT INTO eveCharacter (characterId,");
-        query += "name,corporationId,allianceId,code,lastLogon) VALUES (?,?,?,?,?,?)";
+        query += "name,corporationId,allianceId,code,lastLogon,token) VALUES (?,?,?,?,?,?)";
 
         let mut statement = conn.prepare(query.as_str())?;
         let dt = character.last_logon.to_rfc3339();
-        statement.execute(rusqlite::params![character.id,character.name,character.corporation,character.alliance,dt])?;
+        statement.execute(rusqlite::params![character.id,character.name,character.corporation,character.alliance,dt,character.token])?;
         Ok(true)
     }
 
@@ -68,7 +73,7 @@ impl Database{
         }
         let conn = self.connection.unwrap();
         let mut query = String::from("SELECT characterId,name,corporationId,allianceId,");
-        query += "code,lastLogon FROM eveCharacter";
+        query += "token,lastLogon, expiration FROM eveCharacter";
         let mut statement = conn.prepare(query.as_str())?;
         let mut rows = statement.query([])?;
         while let Some(row) = rows.next()? {
@@ -78,14 +83,30 @@ impl Database{
                 name:row.get(1)?,
                 corporation:row.get(2)?,
                 alliance:row.get(3)?,
-                code: row.get(4)?,
+                token: row.get(4)?,
                 last_logon:dt.unwrap(),
+                expiration: None,
             };
             result.push(char);
         }
         Ok(result)
     }
 
+    pub fn update_character(self,characters: Vec<Character>) -> Result<bool,Error> {
+        let conn;
+        if let Some(tconn) = self.connection{
+            conn = tconn;
+        } else {
+            return Ok(false);
+        }
+        for char in characters {
+            let mut query = String::from("UPDATE eveCharacter SET name=?,corporationId=?,allianceId=?,");
+            query += "token=?,lastlogon=?,expiration=? FROM eveCharacter WHERE characterId=?";
+            let mut statement = conn.prepare(query.as_str())?;
+            let mut rows = statement.query([char.name,char.corporation.to_string(),char.alliance.to_string(),char.token.to_string(),char.last_logon.to_string(),char.expiration.unwrap().to_string()])?;
+        }
+        Ok(true)
+    }
     
 }
 
@@ -101,6 +122,21 @@ pub struct Character {
     pub name: String,
     pub corporation: usize,
     pub alliance: usize,
-    pub code:usize,
+    pub token:String,
     pub last_logon: DateTime<FixedOffset>,
+    pub expiration: Option<DateTime<FixedOffset>>,
+}
+
+impl Character{
+    pub fn new() -> Self {
+        Character { 
+            id: 0, 
+            name: String::new(), 
+            corporation: 0, 
+            alliance: 0, 
+            token: String::new(), 
+            last_logon: DateTime::default(), 
+            expiration: None 
+        }
+    }
 }

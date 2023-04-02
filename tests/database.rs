@@ -5,6 +5,7 @@ mod tests_database {
     use std::path::Path;
     use std::fs;
     use webb::esi::EsiManager;
+    use webb::esi::data::Data;
 
     #[test]
     fn test_database_creation() {
@@ -21,7 +22,8 @@ mod tests_database {
 
     #[test]
     fn test_web_auth() {
-        let esimon = EsiManager::new();
+        let esi_data = Data::new();
+        let esimon = EsiManager::new(esi_data);
         let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
         match open::that(&url){
             Ok(()) => {

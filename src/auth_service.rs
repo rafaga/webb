@@ -11,6 +11,8 @@ use tokio::sync::Mutex;
 use lazy_static::lazy_static;
 use tokio::sync::oneshot::Sender;
 use futures::executor::block_on;
+use tokio::time::{Instant, timeout_at};
+use tokio::time::Duration;
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safetly.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
@@ -132,9 +134,10 @@ pub async fn open_auth_service() -> Result<(String,String), Box<dyn std::error::
             }
         });
     
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
-    }
+    if let Err(err) = timeout_at(Instant::now() + Duration::from_secs(300), server).await {
+        eprintln!("{}",err);
+        result = (String::new(),String::new());
+    };
 
     Ok(result)
 }
