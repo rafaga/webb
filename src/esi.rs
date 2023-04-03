@@ -3,6 +3,7 @@ pub mod data;
 use crate::esi::data::Data;
 use rfesi::prelude::*;
 
+#[derive(Clone)]
 pub struct EsiManager{
     pub esi: Esi,
 }
