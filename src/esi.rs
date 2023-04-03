@@ -39,7 +39,7 @@ impl EsiManager {
     }
 
     #[tokio::main]
-    pub async fn open_auth_service(mut self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn auth_user(&mut self) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], 56123).into();
         let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
