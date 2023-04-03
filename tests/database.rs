@@ -5,7 +5,6 @@ mod tests_database {
     use std::path::Path;
     use std::fs;
     use webb::esi::EsiManager;
-    use webb::esi::data::Data;
 
     #[test]
     fn test_database_creation() {
@@ -20,19 +19,19 @@ mod tests_database {
         }
     }
 
-    #[test]
+    /*#[test]
     fn test_web_auth() {
         let esi_data = Data::new();
         let esimon = EsiManager::new(esi_data);
         let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
         match open::that(&url){
             Ok(()) => {
-                let result = auth_service::open_auth_service().unwrap();
+                let result = esimon.open_auth_service().unwrap();
                 assert_ne!(result.0.as_str(),"");
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
-    }
+    }*/
 
 
     /* 

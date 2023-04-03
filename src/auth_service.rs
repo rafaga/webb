@@ -1,32 +1,17 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use std::net::SocketAddr;
 
 use hyper::service::Service;
 use hyper::{Request, Response};
-use hyper::{Body, Method,  Server, StatusCode};
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use lazy_static::lazy_static;
-use tokio::sync::oneshot::Sender;
+use hyper::{Body, Method, StatusCode};
+
 use futures::executor::block_on;
-use tokio::time::{Instant, timeout_at};
-use tokio::time::Duration;
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safetly.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
 
-
-lazy_static! {
-    /// Channel used to send shutdown signal - wrapped in an Option to allow
-    /// it to be taken by value (since oneshot channels consume themselves on
-    /// send) and an Arc<Mutex> to allow it to be safely shared between threads
-    static ref SHARED_TX: Arc<Mutex<Option<Sender<(String,String)>>>> = <_>::default();
-}
-
-
-pub struct AuthService{
+pub (crate) struct AuthService{
 }
 
 impl AuthService{
@@ -62,7 +47,7 @@ impl Service<Request<Body>> for AuthService {
                     }
                     if !message.0.is_empty() && !message.1.is_empty() {
                         block_on(async {
-                            if let Some(tx) = SHARED_TX.lock().await.take() {
+                            if let Some(tx) = crate::SHARED_TX.lock().await.take() {
                                 let _ = tx.send(message.clone());
                             }
                         });
@@ -94,7 +79,7 @@ impl Service<Request<Body>> for AuthService {
 
 }
 
-struct MakeSvc {
+pub (crate) struct MakeSvc {
 }
 
 impl MakeSvc {
@@ -117,27 +102,4 @@ impl<T> Service<T> for MakeSvc {
         let fut = async move { Ok(AuthService{}) };
         Box::pin(fut)
     }
-}
-
-#[tokio::main]
-pub async fn open_auth_service() -> Result<(String,String), Box<dyn std::error::Error + Send + Sync>> {
-    let addr: SocketAddr = ([127, 0, 0, 1], 56123).into();
-    let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
-    SHARED_TX.lock().await.replace(tx);
-    let mut result = (String::new(),String::new());
-    let server = Server::bind(&addr)
-        .serve(MakeSvc::new())
-        .with_graceful_shutdown(async {
-            let msg = rx.await.ok();
-            if let Some(values) = msg {
-                result = values;
-            }
-        });
-    
-    if let Err(err) = timeout_at(Instant::now() + Duration::from_secs(300), server).await {
-        eprintln!("{}",err);
-        result = (String::new(),String::new());
-    };
-
-    Ok(result)
 }
