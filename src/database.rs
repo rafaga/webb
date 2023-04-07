@@ -120,7 +120,9 @@ impl Database{
         } else {
             return Ok(false);
         }
-        let mut query = String::from("UPDATE eveCharacter SET name=?,owner=?,jti=?,");
+        let mut query;
+        
+        query = String::from("UPDATE eveCharacter SET name=?,owner=?,jti=?,");
         query += "token=?,lastlogon=?,expiration=? FROM eveCharacter WHERE characterId=?";
         let mut statement = conn.prepare(query.as_str())?;
         let params = [char.name,
@@ -148,7 +150,7 @@ pub struct AuthData{
     pub expiration: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct Character {
     pub id: u64,
     pub name: String,
@@ -158,13 +160,13 @@ pub struct Character {
     pub alliance: Option<Alliance>,
     pub photo: Option<String>,
 }
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct Corporation {
     pub id: u64,
     pub name: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone,PartialEq)]
 pub struct Alliance {
     pub id: u64,
     pub name: String,
