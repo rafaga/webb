@@ -113,9 +113,9 @@ impl Database{
         Ok(result)
     }
 
-    pub fn update_character(self,char: Character) -> Result<bool,Error> {
+    pub fn update_character(&mut self,char: Character) -> Result<bool,Error> {
         let conn;
-        if let Some(tconn) = self.connection{
+        if let Some(tconn) = &self.connection{
             conn = tconn;
         } else {
             return Ok(false);
