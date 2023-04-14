@@ -19,20 +19,28 @@ mod tests_database {
         }
     }
 
-    /*#[test]
+    #[test]
     fn test_web_auth() {
-        let esi_data = Data::new();
-        let esimon = EsiManager::new(esi_data);
+        let app_data = vec!["telescope/v0","a4b4a52e65fe4dce95eec1fab224407c","AFgvjrXi8rRpYbhsYe5hQFpPk266jyU40QlPYIam","http://localhost:4500/login"];
+        let scope = vec!["publicData"];
+
+        let mut esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope); 
         let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
         match open::that(&url){
             Ok(()) => {
-                let result = esimon.open_auth_service().unwrap();
-                assert_ne!(result.0.as_str(),"");
+                let result = esimon.esi.get_authorize_url().unwrap();
+                match open::that(&result.0){
+                    Ok(()) => {
+                        if let Ok(Some(char)) = esimon.auth_user(4500){
+                            assert_ne!(char.name,"");
+                        }
+                    },
+                    Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
+                }
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
-    }*/
-
+    }
 
     /* 
     #[test]

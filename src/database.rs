@@ -1,5 +1,4 @@
 use std::path::Path;
-use rfesi::groups::CharacterPortraitInfo;
 use rusqlite::*;
 use uuid::Uuid;
 use chrono::prelude::*;

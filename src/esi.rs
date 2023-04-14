@@ -18,14 +18,7 @@ pub struct EsiManager{
 
 impl EsiManager {
 
-    pub fn new(useragent: &str, client_id: &str, client_secret: &str, callback_url: &str) -> Self {
-        
-        let scope = vec!["publicData","esi-alliances.read_contacts.v1","esi-characters.read_chat_channels.v1",
-            "esi-characters.read_contacts.v1","esi-characters.read_fatigue.v1","esi-characters.read_standings.v1",
-            "esi-clones.read_clones.v1","esi-clones.read_implants.v1","esi-corporations.read_contacts.v1","esi-corporations.read_standings.v1",
-            "esi-corporations.read_starbases.v1","esi-corporations.read_structures.v1","esi-location.read_location.v1",
-            "esi-location.read_online.v1","esi-location.read_ship_type.v1","esi-search.search_structures.v1",
-            "esi-skills.read_skills.v1","esi-ui.write_waypoint.v1","esi-universe.read_structures.v1"];
+    pub fn new(useragent: &str, client_id: &str, client_secret: &str, callback_url: &str, scope: Vec<&str>) -> Self {
 
         let esi = EsiBuilder::new()
             .user_agent(useragent)
@@ -42,8 +35,8 @@ impl EsiManager {
     }
 
     #[tokio::main]
-    pub async fn auth_user(&mut self) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
-        let addr: SocketAddr = ([127, 0, 0, 1], 56123).into();
+    pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+        let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(),String::new());
