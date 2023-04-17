@@ -5,7 +5,7 @@ use tokio::sync::oneshot::Sender;
 
 
 pub mod auth_service;
-pub mod database;
+pub mod objects;
 pub mod esi;
 
 lazy_static! {

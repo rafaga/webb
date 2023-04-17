@@ -1,5 +1,5 @@
 /target
 /Cargo.lock
 .vscode/
-tests/tests.db
+tests/*.db
 src/esi/data.rs

@@ -5,20 +5,158 @@ use tokio::time::Duration;
 use std::net::SocketAddr;
 use hyper::Server;
 use crate::auth_service::MakeSvc;
-use crate::database::{Character, Alliance, Corporation};
+use crate::objects::{Character, Alliance, Corporation, TelescopeDbError, AuthData};
 use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
+use std::path::Path;
+use rusqlite::*;
+use uuid::Uuid;
 
 
-
-pub struct EsiManager{
+pub struct EsiManager<'a>{
     pub esi: Esi,
     pub characters: Vec<Character>,
+    pub path: &'a Path,
+    uuid: Uuid,
 }
 
-impl EsiManager {
+impl<'a> EsiManager<'a> {
 
-    pub fn new(useragent: &str, client_id: &str, client_secret: &str, callback_url: &str, scope: Vec<&str>) -> Self {
+    fn open_flags() -> OpenFlags {
+        let mut flags = OpenFlags::default();
+        flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
+        flags.set(OpenFlags::SQLITE_OPEN_FULL_MUTEX, true);
+        flags
+    }
+
+    fn migrate_database(self) -> Result<bool,Error> {
+        Ok(true)
+    }
+
+    pub fn del_characters(self, characters: Vec<Character>) -> Result<bool,Error> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
+        let query = String::from("PRAGMA key = ?;");
+        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let query = String::from("DELETE FROM eveCharacter WHERE characterId = ?;");
+        for player in characters {
+            let mut statement = conn.prepare(query.as_str())?;
+            statement.execute(rusqlite::params![player.id])?;
+        }
+        Ok(true)
+    }
+
+    pub fn add_characters(self, characters: Vec<Character>) -> Result<bool,Error> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
+        let query = String::from("PRAGMA key = ?;");
+        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let mut query = String::from("INSERT INTO char (characterId,");
+        query += "name,corporation,alliance,portrarit,lastLogon) VALUES (?,?,?,?,?)";
+        for player in characters {
+            let mut statement = conn.prepare(query.as_str())?;
+            let dt = player.last_logon.to_rfc3339();
+            let corp = match player.corp {
+                None => 0,
+                Some(t_corp) => t_corp.id,
+            };
+            let alliance = match player.alliance {
+                None => 0,
+                Some(t_alliance) => t_alliance.id,
+            };
+            let params = rusqlite::params![player.id,player.name,corp,alliance,"0",dt];
+            statement.execute(params)?;
+            if let Some(auth_data) = player.auth {
+                query = String::from("INSERT INTO charAuth (CharacterId, owner, jti, token) VALUES  (?,?,?,?)");
+                let mut statement = conn.prepare(query.as_str())?;
+                let values = (auth_data.jti,auth_data.token);
+                let params = rusqlite::params![player.id,values.0,values.1,0];
+                statement.execute(params)?;
+            }
+        }
+        Ok(true)
+    }
+
+
+    pub fn get_characters(self) -> Result<Vec<Character>,Error> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
+        let query = String::from("PRAGMA key = ?;");
+        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let mut result = Vec::new();
+        let mut query = String::from("SELECT characterId,name,corp,alliance,");
+        query += "portrait,lastLogon FROM char";
+        let mut statement = conn.prepare(query.as_str())?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let dt = DateTime::parse_from_rfc3339(row.get::<usize,String>(5)?.as_str());
+            let utc_dt = DateTime::from_utc(dt.unwrap().naive_utc(),Utc);
+            let mut char = Character::new();
+            let mut corp = Corporation{
+                id: row.get(2)?,
+                name: String::new(),
+            };
+            let mut alliance = Alliance{
+                id: row.get(3)?,
+                name: String::new(),
+            };
+            char.id             = row.get(0)?;
+            char.name           = row.get(1)?;
+            char.corp           = Some(corp);
+            char.alliance       = Some(alliance);
+            char.last_logon     = utc_dt;
+            result.push(char);
+        }
+        Ok(result)
+    }
+
+    pub fn update_characters(&self, characters: Vec<Character>) -> Result<bool,TelescopeDbError> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
+        let mut query = String::from("PRAGMA key = ?;");
+        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+
+        query = String::from("UPDATE eveCharacter SET name=?, alliance=?, corp=?, ");
+        query += "lastlogon=? FROM eveCharacter WHERE characterId=?";
+        for player in characters {
+            let mut statement = conn.prepare(query.as_str()).unwrap();
+            let params = rusqlite::params![player.name,
+                                       player.alliance.unwrap().id,
+                                       player.corp.unwrap().id,
+                                       player.last_logon.to_string(),
+                                       player.id];
+            statement.execute(params).unwrap();
+        }
+        Ok(true)
+    }
+
+    fn create_database(&self) -> Result<bool,Error> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
+        let mut query = String::from("PRAGMA key = ?;");
+        conn.execute(query.as_str(),[self.uuid.to_string().as_str()])?;
+        //Character Public Data
+        query = String::from("CREATE TABLE char (characterId INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
+        query += " corporation TEXT NOT NULL, alliance TEXT NOT NULL, portrait BLOB,";
+        query += " lastLogon DATETIME NOT NULL)";
+        conn.execute(query.as_str(),())?;
+        // Character Auth Data
+        query = String::from("CREATE TABLE charAuth (characterId INTEGER REFERENCES char (characterId)");
+        query += " ON UPDATE CASCADAE ON DELETE CASCADE, owner TEXT NOT NULL, jti TEXT NOT NULL, ";
+        query += " token VARCHAR(255) NOT NULL expiration DATETIME)";
+        conn.execute(query.as_str(),())?;
+        // Corporations
+        query = String::from("CREATE TABLE corp (corpId INTEGER PRIMARY KEY,");
+        query += " name VARCHAR(255) NOT NULL)";
+        conn.execute(query.as_str(),())?;
+        // Alliances
+        query = String::from("CREATE TABLE alliance (allianceId INTEGER PRIMARY KEY,");
+        query += " name VARCHAR(255) NOT NULL)";
+        conn.execute(query.as_str(),())?;
+        // Telescope Metadata
+        query = String::from("CREATE TABLE metadata (id VARCHAR(255) PRIMARY KEY,value VARCHAR(255) NOT NULL);");
+        conn.execute(query.as_str(),())?;
+        let query = "INSERT INTO metadata (id,value) VALUES ('db','0')";
+        conn.execute(query,())?;
+        Ok(true)
+    }
+
+    pub fn new(useragent: &str, client_id: &str, client_secret: &str, callback_url: &str, scope: Vec<&str>, database_path: Option<&'a str>) -> Self {
 
         let esi = EsiBuilder::new()
             .user_agent(useragent)
@@ -28,10 +166,29 @@ impl EsiManager {
             .scope(scope.join(" ").as_str())
             .build().unwrap();
 
-        EsiManager {
+        let path;
+        if let Some(pathz) = database_path {
+            path = Path::new(pathz);
+        } else {
+            path = Path::new("telescope.db");
+        }
+
+        let obj = EsiManager {
             esi,
             characters: Vec::new(),
+            path,
+            uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes()),
+        };
+
+        if !path.exists() {
+            // TODO: migration database schema goes here
+            //obj.migrate_database();
+            if let Err(..) = obj.create_database() {
+                panic!("Error creating telescope database");
+            }
         }
+        
+        obj
     }
 
     #[tokio::main]
