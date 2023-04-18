@@ -45,7 +45,13 @@ mod tests_database {
     fn test_characters_no_dup() {
         let app_data = vec!["telescope/v0","a4b4a52e65fe4dce95eec1fab224407c","AFgvjrXi8rRpYbhsYe5hQFpPk266jyU40QlPYIam","http://localhost:4500/login"];
         let scope = vec!["publicData"];
-        let esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope, Some("tests/tests1.db"));
+        let path_str = Some("tests/tests1.db");
+        let path = Path::new(path_str.unwrap());
+        if path.exists() && path.is_file() {
+            let _ = fs::remove_file(path);
+        }
+        let esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope, path_str);
+        
         let mut vec = Vec::new();
         for _n in [0..2] {
             let mut char = Character::new();
@@ -62,7 +68,12 @@ mod tests_database {
     fn test_add_character() {
         let app_data = vec!["telescope/v0","a4b4a52e65fe4dce95eec1fab224407c","AFgvjrXi8rRpYbhsYe5hQFpPk266jyU40QlPYIam","http://localhost:4500/login"];
         let scope = vec!["publicData"];
-        let esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope, Some("tests/tests2.db"));
+        let path_str = Some("tests/tests2.db");
+        let path = Path::new(path_str.unwrap());
+        if path.exists() && path.is_file() {
+            let _ = fs::remove_file(path);
+        }
+        let esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope, path_str);
         let mut vec = Vec::new();
         let mut char = Character::new();
         char.id = 1;

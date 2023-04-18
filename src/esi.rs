@@ -112,8 +112,8 @@ impl<'a> EsiManager<'a> {
         let mut query = String::from("PRAGMA key = ?;");
         conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
 
-        query = String::from("UPDATE eveCharacter SET name=?, alliance=?, corp=?, ");
-        query += "lastlogon=? FROM eveCharacter WHERE characterId=?";
+        query = String::from("UPDATE eveCharacter SET name = ?, alliance = ?, corp = ?, ");
+        query += "lastlogon = ? WHERE characterId = ?;";
         for player in characters {
             let mut statement = conn.prepare(query.as_str()).unwrap();
             let params = rusqlite::params![player.name,
@@ -151,8 +151,8 @@ impl<'a> EsiManager<'a> {
         // Telescope Metadata
         query = String::from("CREATE TABLE metadata (id VARCHAR(255) PRIMARY KEY,value VARCHAR(255) NOT NULL);");
         conn.execute(query.as_str(),())?;
-        let query = "INSERT INTO metadata (id,value) VALUES ('db','0')";
-        conn.execute(query,())?;
+        let query = "INSERT INTO metadata (id,value) VALUES (?,?)";
+        conn.execute(query,["db","0"])?;
         Ok(true)
     }
 
@@ -183,8 +183,8 @@ impl<'a> EsiManager<'a> {
         if !path.exists() {
             // TODO: migration database schema goes here
             //obj.migrate_database();
-            if let Err(..) = obj.create_database() {
-                panic!("Error creating telescope database");
+            if let Err(e) = obj.create_database() {
+                panic!("Error: {}", e);
             }
         }
         
