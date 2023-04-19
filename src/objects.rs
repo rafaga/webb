@@ -1,5 +1,9 @@
 use chrono::prelude::*;
 
+pub trait EsiObject{
+    fn retrieve() -> Result<bool,Error>;
+}
+
 pub enum TelescopeDbError{
     NoConnection,
 }
@@ -23,17 +27,6 @@ pub struct Character {
     pub alliance: Option<Alliance>,
     pub photo: Option<String>,
 }
-#[derive(Clone,PartialEq)]
-pub struct Corporation {
-    pub id: u64,
-    pub name: String,
-}
-
-#[derive(Clone,PartialEq)]
-pub struct Alliance {
-    pub id: u64,
-    pub name: String,
-}
 
 impl Character{
     pub fn new() -> Self {
@@ -55,3 +48,42 @@ impl Character{
         }
     }
 }
+
+#[derive(Clone,PartialEq,Debug)]
+pub struct Corporation {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Corporation{
+    pub fn new() -> Self {
+        Corporation { id: 0, name: String::new() }
+    }
+}
+
+impl Default for Corporation{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone,PartialEq,Debug)]
+pub struct Alliance {
+    pub id: u64,
+    pub name: String,
+}
+
+impl Alliance{
+    pub fn new() -> Self {
+        Alliance { id: 0, name: String::new() }
+    }
+}
+
+impl Default for Alliance{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+

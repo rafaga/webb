@@ -81,7 +81,7 @@ mod tests_database {
         char.corp = Some(Corporation{id:12, name:String::from("test")});
         char.alliance = Some(Alliance{id:2, name:String::from("test")});
         vec.push(char);
-        esimon.add_characters(vec);
+        assert_eq!(esimon.add_characters(vec),Ok(true));
     }
 
     

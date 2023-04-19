@@ -5,12 +5,13 @@ use tokio::time::Duration;
 use std::net::SocketAddr;
 use hyper::Server;
 use crate::auth_service::MakeSvc;
-use crate::objects::{Character, Alliance, Corporation, TelescopeDbError, AuthData};
+use crate::objects::{Character, Alliance, Corporation};
 use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
+use tokio::task;
 
 
 pub struct EsiManager<'a>{
@@ -34,9 +35,11 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn del_characters(self, characters: Vec<Character>) -> Result<bool,Error> {
-        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
-        let query = String::from("PRAGMA key = ?;");
-        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
+        let query = String::from(["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat());
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+
         let query = String::from("DELETE FROM eveCharacter WHERE characterId = ?;");
         for player in characters {
             let mut statement = conn.prepare(query.as_str())?;
@@ -46,11 +49,13 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn add_characters(self, characters: Vec<Character>) -> Result<bool,Error> {
-        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
-        let query = String::from("PRAGMA key = ?;");
-        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
+        let query = String::from(["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat());
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+
         let mut query = String::from("INSERT INTO char (characterId,");
-        query += "name,corporation,alliance,portrarit,lastLogon) VALUES (?,?,?,?,?)";
+        query += "name,corporation,alliance,portrait,lastLogon) VALUES (?,?,?,?,?,?)";
         for player in characters {
             let mut statement = conn.prepare(query.as_str())?;
             let dt = player.last_logon.to_rfc3339();
@@ -77,9 +82,11 @@ impl<'a> EsiManager<'a> {
 
 
     pub fn get_characters(self) -> Result<Vec<Character>,Error> {
-        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
-        let query = String::from("PRAGMA key = ?;");
-        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
+        let query = String::from(["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat());
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+
         let mut result = Vec::new();
         let mut query = String::from("SELECT characterId,name,corp,alliance,");
         query += "portrait,lastLogon FROM char";
@@ -89,11 +96,11 @@ impl<'a> EsiManager<'a> {
             let dt = DateTime::parse_from_rfc3339(row.get::<usize,String>(5)?.as_str());
             let utc_dt = DateTime::from_utc(dt.unwrap().naive_utc(),Utc);
             let mut char = Character::new();
-            let mut corp = Corporation{
+            let corp = Corporation{
                 id: row.get(2)?,
                 name: String::new(),
             };
-            let mut alliance = Alliance{
+            let alliance = Alliance{
                 id: row.get(3)?,
                 name: String::new(),
             };
@@ -107,10 +114,11 @@ impl<'a> EsiManager<'a> {
         Ok(result)
     }
 
-    pub fn update_characters(&self, characters: Vec<Character>) -> Result<bool,TelescopeDbError> {
-        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags()).unwrap();
-        let mut query = String::from("PRAGMA key = ?;");
-        conn.execute(query.as_str(),[self.uuid.to_string().as_str()]).unwrap();
+    pub fn update_characters(&self, characters: Vec<Character>) -> Result<bool,Error> {
+        let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
+        let mut query = String::from(["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat());
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
 
         query = String::from("UPDATE eveCharacter SET name = ?, alliance = ?, corp = ?, ");
         query += "lastlogon = ? WHERE characterId = ?;";
@@ -121,38 +129,43 @@ impl<'a> EsiManager<'a> {
                                        player.corp.unwrap().id,
                                        player.last_logon.to_string(),
                                        player.id];
-            statement.execute(params).unwrap();
+            statement.execute(params)?;
         }
         Ok(true)
     }
 
     fn create_database(&self) -> Result<bool,Error> {
         let conn = Connection::open_with_flags(self.path, EsiManager::open_flags())?;
-        let mut query = String::from("PRAGMA key = ?;");
-        conn.execute(query.as_str(),[self.uuid.to_string().as_str()])?;
+        let mut query = String::from(["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat());
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
         //Character Public Data
         query = String::from("CREATE TABLE char (characterId INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
         query += " corporation TEXT NOT NULL, alliance TEXT NOT NULL, portrait BLOB,";
         query += " lastLogon DATETIME NOT NULL)";
-        conn.execute(query.as_str(),())?;
+        let mut statement = conn.prepare(query.as_str())?;
+        statement.execute([])?;
         // Character Auth Data
         query = String::from("CREATE TABLE charAuth (characterId INTEGER REFERENCES char (characterId)");
-        query += " ON UPDATE CASCADAE ON DELETE CASCADE, owner TEXT NOT NULL, jti TEXT NOT NULL, ";
-        query += " token VARCHAR(255) NOT NULL expiration DATETIME)";
-        conn.execute(query.as_str(),())?;
+        query += " ON UPDATE CASCADE ON DELETE CASCADE, owner TEXT NOT NULL, jti TEXT NOT NULL, ";
+        query += " token VARCHAR(255) NOT NULL, expiration DATETIME)";
+        let mut statement = conn.prepare(query.as_str())?;
+        statement.execute([])?;
         // Corporations
-        query = String::from("CREATE TABLE corp (corpId INTEGER PRIMARY KEY,");
-        query += " name VARCHAR(255) NOT NULL)";
-        conn.execute(query.as_str(),())?;
+        let mut query = "CREATE TABLE corp (corpId INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL)";
+        let mut statement = conn.prepare(query)?;
+        statement.execute([])?;
         // Alliances
-        query = String::from("CREATE TABLE alliance (allianceId INTEGER PRIMARY KEY,");
-        query += " name VARCHAR(255) NOT NULL)";
-        conn.execute(query.as_str(),())?;
+        query = "CREATE TABLE alliance (allianceId INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL)";
+        statement = conn.prepare(query)?;
+        statement.execute([])?;
         // Telescope Metadata
-        query = String::from("CREATE TABLE metadata (id VARCHAR(255) PRIMARY KEY,value VARCHAR(255) NOT NULL);");
-        conn.execute(query.as_str(),())?;
-        let query = "INSERT INTO metadata (id,value) VALUES (?,?)";
-        conn.execute(query,["db","0"])?;
+        query = "CREATE TABLE metadata (id VARCHAR(255) PRIMARY KEY,value VARCHAR(255) NOT NULL);";
+        statement = conn.prepare(query)?;
+        statement.execute([])?;
+        query = "INSERT INTO metadata (id,value) VALUES (?,?)";
+        statement = conn.prepare(query)?;
+        statement.execute(["db","0"])?;
         Ok(true)
     }
 
@@ -210,10 +223,10 @@ impl<'a> EsiManager<'a> {
             eprintln!("{}",err);
             return Ok(None);
         };
-
-        let mut player = Character::new();
-        block_on(async {    
-            let claims = self.esi.authenticate(result.0.as_str()).await;
+        let mut esi = self.esi.clone();        
+        let join_handle = task::spawn(async move {  
+            let mut player = Character::new();  
+            let claims = esi.authenticate(result.0.as_str()).await;
             let data = claims.unwrap().unwrap();
             //character name
             player.name = data.name;
@@ -229,30 +242,33 @@ impl<'a> EsiManager<'a> {
                 let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
                 player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
             }
-            let asyncdata = self.esi.group_character().get_public_info(player.id as u64).await;
+            let asyncdata = esi.group_character().get_public_info(player.id as u64).await;
             let mut ids:(u64,u64) = (0,0);
             if let Ok(public_data) = asyncdata {
                 ids.0 = public_data.alliance_id;
                 ids.1 = public_data.corporation_id;
             }
-            if let Ok(tcorp) = self.esi.group_corporation().get_public_info(ids.0).await{
+            if let Ok(tcorp) =  esi.group_corporation().get_public_info(ids.0).await{
                 let corp = Corporation{
                     id:ids.0,
                     name: tcorp.name,
                 };
                 player.corp = Some(corp);
             }
-            if let Ok(talliance) = self.esi.group_alliance().get_info(ids.1).await{
+            if let Ok(talliance) =  esi.group_alliance().get_info(ids.1).await{
                 let alliance = Alliance{
                     id: ids.1,
                     name: talliance.name,
                 };
                 player.alliance = Some(alliance);
             }
-            if let Ok(photo) = self.esi.group_character().get_portrait(player.id).await {
+            if let Ok(photo) = esi.group_character().get_portrait(player.id).await {
                 player.photo= Some(photo.px64x64);
             };
+            player
         });
+        
+        let player = join_handle.await?;
         Ok(Some(player))  
     }
 }
