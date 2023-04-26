@@ -11,6 +11,7 @@ use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
 use tokio::task;
+use futures::executor::block_on;
 
 
 pub struct EsiManager<'a>{
@@ -207,6 +208,7 @@ impl<'a> EsiManager<'a> {
     pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
+
         let (tx_corp, rx_corp) = tokio::sync::oneshot::channel::<u64>();
         let (tx_ally, rx_ally) = tokio::sync::oneshot::channel::<u64>();
         crate::SHARED_TX.lock().await.replace(tx);
@@ -249,41 +251,48 @@ impl<'a> EsiManager<'a> {
         let esi = self.esi.clone();
 
         // We get player Corporatioin ID, Alliance ID and Photo.
-        let join_handle = task::spawn(async move {
+        let res = block_on(async move {
+            let ids;
             let asyncdata = esi.group_character().get_public_info(player.id as u64).await;
             if let Ok(public_data) = asyncdata {
-                let _ = tx_corp.send(public_data.corporation_id);
-                let _ = tx_ally.send(public_data.alliance_id);
+                ids = Some((public_data.corporation_id,public_data.alliance_id));
+            }
+            else {
+                ids = None
             }
             let portrait_data = esi.group_character().get_portrait(player.id).await;
             if let Ok(photo) = portrait_data {
-                Some(photo.px64x64)
+                (Some(photo.px64x64),ids)
             } else {
-                None
+                (None,ids)
             }
         });
-        player.photo = join_handle.await?;
-        let esi = self.esi.clone();
-        player.corp = EsiManager::get_player_corporation(esi, rx_corp).await;
-        let esi = self.esi.clone();
-        player.alliance = EsiManager::get_player_alliance(esi, rx_ally).await;       
+
+        if let Some(photo) = res.0 {
+            player.photo= Some(photo);
+        }
+
+        if let Some(ids) = res.1 {
+            let esi = self.esi.clone();
+            let esik = self.esi.clone();
+            let resz = tokio::join!(EsiManager::get_player_corporation(esi, ids.0) ,EsiManager::get_player_alliance(esik, ids.1)); 
+            player.corp = resz.0;
+            player.alliance = resz.1;
+        }
+     
         Ok(Some(player))  
     }
 
-    pub async fn get_player_corporation(esi:Esi, rx:tokio::sync::oneshot::Receiver<u64>) -> Option<Corporation> {
+    async fn get_player_corporation(esi:Esi, id:u64) -> Option<Corporation> {
         //We get Corporation 
         let join_handle = task::spawn(async move {
-            if let Ok(id) = rx.await {
-                let corp_resp = esi.group_corporation().get_public_info(id).await;
-                if let Ok(corp_info) = corp_resp {
-                    let corp = Corporation{
-                        id:id,
-                        name: corp_info.name.clone(),
-                    };
-                    Some(corp)
-                } else {
-                    None
-                }
+            let corp_resp = esi.group_corporation().get_public_info(id).await;
+            if let Ok(corp_info) = corp_resp {
+                let corp = Corporation{
+                    id,
+                    name: corp_info.name.clone(),
+                };
+                Some(corp)
             } else {
                 None
             }
@@ -291,19 +300,15 @@ impl<'a> EsiManager<'a> {
         join_handle.await.unwrap()
     }
 
-    pub async fn get_player_alliance(esi:Esi, rx:tokio::sync::oneshot::Receiver<u64>) -> Option<Alliance> {
+    async fn get_player_alliance(esi:Esi, id:u64) -> Option<Alliance> {
         let join_handle = task::spawn(async move {
-            if let Ok(id) = rx.await {
-                let ally_resp = esi.group_alliance().get_info(id).await;
-                if let Ok(ally) =  ally_resp {
-                    let alliance = Alliance{
-                        id: id,
-                        name: ally.name,
-                    };
-                    Some(alliance)
-                } else {
-                    None
-                }
+            let ally_resp = esi.group_alliance().get_info(id).await;
+            if let Ok(ally) =  ally_resp {
+                let alliance = Alliance{
+                    id,
+                    name: ally.name,
+                };
+                Some(alliance)
             } else {
                 None
             }

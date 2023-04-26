@@ -32,9 +32,9 @@ mod tests_database {
         let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
         match open::that(&url){
             Ok(()) => {
-                if let Ok(Some(char)) = esimon.auth_user(4500){
+                if let Ok(Some(player)) = esimon.auth_user(4500){
 
-                    assert_ne!(char.name,"");
+                    assert_ne!(player.name,"");
                 }
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
