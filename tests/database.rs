@@ -33,6 +33,7 @@ mod tests_database {
         match open::that(&url){
             Ok(()) => {
                 if let Ok(Some(char)) = esimon.auth_user(4500){
+
                     assert_ne!(char.name,"");
                 }
             },

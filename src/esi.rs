@@ -1,5 +1,4 @@
 use rfesi::prelude::*;
-use futures::executor::block_on;
 use tokio::time::{Instant, timeout_at};
 use tokio::time::Duration;
 use std::net::SocketAddr;
@@ -208,6 +207,8 @@ impl<'a> EsiManager<'a> {
     pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
+        let (tx_corp, rx_corp) = tokio::sync::oneshot::channel::<u64>();
+        let (tx_ally, rx_ally) = tokio::sync::oneshot::channel::<u64>();
         crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(),String::new());
         let server = Server::bind(&addr)
@@ -242,33 +243,71 @@ impl<'a> EsiManager<'a> {
                 let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
                 player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
             }
-            let asyncdata = esi.group_character().get_public_info(player.id as u64).await;
-            let mut ids:(u64,u64) = (0,0);
-            if let Ok(public_data) = asyncdata {
-                ids.0 = public_data.alliance_id;
-                ids.1 = public_data.corporation_id;
-            }
-            if let Ok(tcorp) =  esi.group_corporation().get_public_info(ids.0).await{
-                let corp = Corporation{
-                    id:ids.0,
-                    name: tcorp.name,
-                };
-                player.corp = Some(corp);
-            }
-            if let Ok(talliance) =  esi.group_alliance().get_info(ids.1).await{
-                let alliance = Alliance{
-                    id: ids.1,
-                    name: talliance.name,
-                };
-                player.alliance = Some(alliance);
-            }
-            if let Ok(photo) = esi.group_character().get_portrait(player.id).await {
-                player.photo= Some(photo.px64x64);
-            };
             player
         });
-        
-        let player = join_handle.await?;
+        let mut player = join_handle.await?;
+        let esi = self.esi.clone();
+
+        // We get player Corporatioin ID, Alliance ID and Photo.
+        let join_handle = task::spawn(async move {
+            let asyncdata = esi.group_character().get_public_info(player.id as u64).await;
+            if let Ok(public_data) = asyncdata {
+                let _ = tx_corp.send(public_data.corporation_id);
+                let _ = tx_ally.send(public_data.alliance_id);
+            }
+            let portrait_data = esi.group_character().get_portrait(player.id).await;
+            if let Ok(photo) = portrait_data {
+                Some(photo.px64x64)
+            } else {
+                None
+            }
+        });
+        player.photo = join_handle.await?;
+        let esi = self.esi.clone();
+        player.corp = EsiManager::get_player_corporation(esi, rx_corp).await;
+        let esi = self.esi.clone();
+        player.alliance = EsiManager::get_player_alliance(esi, rx_ally).await;       
         Ok(Some(player))  
+    }
+
+    pub async fn get_player_corporation(esi:Esi, rx:tokio::sync::oneshot::Receiver<u64>) -> Option<Corporation> {
+        //We get Corporation 
+        let join_handle = task::spawn(async move {
+            if let Ok(id) = rx.await {
+                let corp_resp = esi.group_corporation().get_public_info(id).await;
+                if let Ok(corp_info) = corp_resp {
+                    let corp = Corporation{
+                        id:id,
+                        name: corp_info.name.clone(),
+                    };
+                    Some(corp)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+        join_handle.await.unwrap()
+    }
+
+    pub async fn get_player_alliance(esi:Esi, rx:tokio::sync::oneshot::Receiver<u64>) -> Option<Alliance> {
+        let join_handle = task::spawn(async move {
+            if let Ok(id) = rx.await {
+                let ally_resp = esi.group_alliance().get_info(id).await;
+                if let Ok(ally) =  ally_resp {
+                    let alliance = Alliance{
+                        id: id,
+                        name: ally.name,
+                    };
+                    Some(alliance)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        });
+        join_handle.await.unwrap()
     }
 }
