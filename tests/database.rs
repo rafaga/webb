@@ -7,8 +7,6 @@ mod tests_database {
 
     #[test]
     fn test_database_creation() {
-
-
         let app_data = vec!["telescope/v0","a4b4a52e65fe4dce95eec1fab224407c","AFgvjrXi8rRpYbhsYe5hQFpPk266jyU40QlPYIam","http://localhost:4500/login"];
         let scope = vec!["publicData"];
 

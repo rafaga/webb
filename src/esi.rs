@@ -255,7 +255,7 @@ impl<'a> EsiManager<'a> {
                     Some(data)
                 },
                 Err(the_error) => {
-                    panic!("{}", the_error);
+                    println!("{}",the_error);
                     None
                 }
 
