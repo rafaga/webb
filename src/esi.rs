@@ -251,7 +251,7 @@ impl<'a> EsiManager<'a> {
         let join_handle = task::spawn(async move {
             match esi.group_character().get_public_info(id).await{
                 Ok(public_data) => Some((public_data.corporation_id,public_data.alliance_id)),
-                Err(the_error) => None,
+                Err(_) => None,
             }
         });
         let result = join_handle.await?; 
