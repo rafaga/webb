@@ -241,7 +241,7 @@ impl<'a> EsiManager<'a> {
             let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
             player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
         }
-        Ok(Some(player))  
+        Ok(Some(player))
     }
 
     #[tokio::main]
@@ -282,7 +282,7 @@ impl<'a> EsiManager<'a> {
     }
 
     #[tokio::main]
-    pub async fn get_player_alliance(&self, id:u64) -> Result<Option<Alliance>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn get_alliance(&self, id:u64) -> Result<Option<Alliance>, Box<dyn std::error::Error + Send + Sync>> {
         let esi = self.esi.clone();
         let join_handle = task::spawn(async move {
             let ally_resp = esi.group_alliance().get_info(id).await;
