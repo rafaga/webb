@@ -31,8 +31,7 @@ mod tests_database {
         match open::that(&url){
             Ok(()) => {
                 if let Ok(Some(player)) = esimon.auth_user(4500){
-
-                    assert_ne!(player.name,"");
+                    assert_ne!(player.corp,None);
                 }
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),

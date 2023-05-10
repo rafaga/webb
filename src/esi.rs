@@ -239,96 +239,24 @@ impl<'a> EsiManager<'a> {
             player.auth.as_mut().unwrap().jti= data.jti;
             //expiration Date
             let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
-            player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
+            player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));            
+            let public_info = self.esi.group_character().get_public_info(player.id).await?;
+            let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
+            let corp = Corporation{
+                id: public_info.corporation_id,
+                name: corp_info.name,
+            };
+            player.corp = Some(corp);
+            let ally_info = self.esi.group_alliance().get_info(public_info.alliance_id).await?;
+            let ally = Alliance {
+                id: public_info.alliance_id,
+                name: ally_info.name,
+            };
+            player.alliance = Some(ally);
+            let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
+            player.photo = Some(player_portraits.px64x64);
         }
         Ok(Some(player))
     }
-
-    #[tokio::main]
-    pub async fn get_user_data(&self, id:u64) -> Result<Option<(u64,u64)>, Box<dyn std::error::Error + Send + Sync>> {
-        // We get player Corporatioin ID, Alliance ID and Photo.
-        let esi = self.esi.clone();   
-        let join_handle = task::spawn(async move {
-            match esi.group_character().get_public_info(id).await{
-                Ok(public_data) => Some((public_data.corporation_id,public_data.alliance_id)),
-                Err(_) => None,
-            }
-        });
-        let result = join_handle.await?; 
-        Ok(result)
-    }
-
-    #[tokio::main]
-    pub async fn get_corp(&self, id:u64) -> Result<Option<Corporation>, Box<dyn std::error::Error + Send + Sync>> {
-        let esi = self.esi.clone();
-        let join_handle = task::spawn(async move {
-            let corp_resp = esi.group_corporation().get_public_info(id).await;
-            if let Ok(corp_info) = corp_resp {
-                let corp = Corporation{
-                    id,
-                    name: corp_info.name.clone(),
-                };
-                return Some(corp);
-            } else {
-                return None;
-            }
-        });
-        let result = join_handle.await?;
-        Ok(result)
-    }
-
-    #[tokio::main]
-    pub async fn get_alliance(&self, id:u64) -> Result<Option<Alliance>, Box<dyn std::error::Error + Send + Sync>> {
-        let esi = self.esi.clone();
-        let join_handle = task::spawn(async move {
-            let ally_resp = esi.group_alliance().get_info(id).await;
-            if let Ok(ally) =  ally_resp {
-                let alliance = Alliance{
-                    id,
-                    name: ally.name,
-                };
-                return Some(alliance);
-            } else {
-                return None;
-            }
-        });
-        let result = join_handle.await.unwrap();
-        Ok(result)
-    }
-
-        /*if let Some(photo) = res.0 {
-            player.photo= Some(photo);
-        }
-        // We get player Corporatioin ID, Alliance ID and Photo.
-        let res = block_on(async move {
-            let ids;
-            let asyncdata = esi.group_character().get_public_info(player.id as u64).await;
-            if let Ok(public_data) = asyncdata {
-                ids = Some((public_data.corporation_id,public_data.alliance_id));
-            }
-            else {
-                ids = None
-            }
-        });*/
-
-
-        /*let portrait_data = esi.group_character().get_portrait(id).await;
-        if let Ok(photo) = portrait_data {
-            (Some(photo.px64x64),ids)
-        } else {
-            (None,ids)
-        }
-        if let Some(photo) = res.0 {
-            player.photo= Some(photo);
-        }*/
-
-        /*if let Some(ids) = res.1 {
-            let esi = self.esi.clone();
-            let esik = self.esi.clone();
-            let resz = tokio::join!(EsiManager::get_player_corporation(esi, ids.0) ,EsiManager::get_player_alliance(esik, ids.1)); 
-            player.corp = resz.0;
-            player.alliance = resz.1;
-        }*/
-    //}
    
 }
