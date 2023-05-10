@@ -208,9 +208,6 @@ impl<'a> EsiManager<'a> {
     pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
-
-        let (tx_corp, rx_corp) = tokio::sync::oneshot::channel::<u64>();
-        let (tx_ally, rx_ally) = tokio::sync::oneshot::channel::<u64>();
         crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(),String::new());
         let server = Server::bind(&addr)
@@ -226,30 +223,86 @@ impl<'a> EsiManager<'a> {
             eprintln!("{}",err);
             return Ok(None);
         };
-        let mut esi = self.esi.clone();        
-        let join_handle = task::spawn(async move {  
-            let mut player = Character::new();  
-            let claims = esi.authenticate(result.0.as_str()).await;
-            let data = claims.unwrap().unwrap();
-            //character name
-            player.name = data.name;
-            //character id
-            let split:Vec<&str> = data.sub.split(":").collect();
-            player.id = split[2].as_ptr() as u64;
-            if player.auth != None {
-                // owner
-                player.auth.as_mut().unwrap().owner = data.owner;
-                //jti
-                player.auth.as_mut().unwrap().jti= data.jti;
-                //expiration Date
-                let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
-                player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
-            }
-            player
-        });
-        let mut player = join_handle.await?;
-        let esi = self.esi.clone();
+        let claims = self.esi.authenticate(result.0.as_str()).await?;      
 
+        let mut player = Character::new();  
+        let data = claims.unwrap();
+        //character name
+        player.name = data.name;
+        //character id
+        let split:Vec<&str> = data.sub.split(":").collect();
+        player.id = split[2].as_ptr() as u64;
+        if player.auth != None {
+            // owner
+            player.auth.as_mut().unwrap().owner = data.owner;
+            //jti
+            player.auth.as_mut().unwrap().jti= data.jti;
+            //expiration Date
+            let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
+            player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
+        }
+        Ok(Some(player))  
+    }
+
+    #[tokio::main]
+    pub async fn get_user_data(&self, id:u64) -> Result<Option<(u64,u64)>, Box<dyn std::error::Error + Send + Sync>> {
+        // We get player Corporatioin ID, Alliance ID and Photo.
+        let esi = self.esi.clone();   
+        let join_handle = task::spawn(async move {
+            let asyncdata = esi.group_character().get_public_info(id).await;
+            if let Ok(public_data) = asyncdata {
+                let data = (public_data.corporation_id,public_data.alliance_id);
+                return Some(data);
+            }
+            else {
+                return None;
+            }
+        });
+        let result = join_handle.await?; 
+        Ok(result)
+    }
+
+    #[tokio::main]
+    pub async fn get_corp(&self, id:u64) -> Result<Option<Corporation>, Box<dyn std::error::Error + Send + Sync>> {
+        let esi = self.esi.clone();
+        let join_handle = task::spawn(async move {
+            let corp_resp = esi.group_corporation().get_public_info(id).await;
+            if let Ok(corp_info) = corp_resp {
+                let corp = Corporation{
+                    id,
+                    name: corp_info.name.clone(),
+                };
+                return Some(corp);
+            } else {
+                return None;
+            }
+        });
+        let result = join_handle.await?;
+        Ok(result)
+    }
+
+    #[tokio::main]
+    pub async fn get_player_alliance(&self, id:u64) -> Result<Option<Alliance>, Box<dyn std::error::Error + Send + Sync>> {
+        let esi = self.esi.clone();
+        let join_handle = task::spawn(async move {
+            let ally_resp = esi.group_alliance().get_info(id).await;
+            if let Ok(ally) =  ally_resp {
+                let alliance = Alliance{
+                    id,
+                    name: ally.name,
+                };
+                return Some(alliance);
+            } else {
+                return None;
+            }
+        });
+        let result = join_handle.await.unwrap();
+        Ok(result)
+    }
+
+        /*if let Some(photo) = res.0 {
+            player.photo= Some(photo);
+        }
         // We get player Corporatioin ID, Alliance ID and Photo.
         let res = block_on(async move {
             let ids;
@@ -260,59 +313,26 @@ impl<'a> EsiManager<'a> {
             else {
                 ids = None
             }
-            let portrait_data = esi.group_character().get_portrait(player.id).await;
-            if let Ok(photo) = portrait_data {
-                (Some(photo.px64x64),ids)
-            } else {
-                (None,ids)
-            }
-        });
+        });*/
 
+
+        /*let portrait_data = esi.group_character().get_portrait(id).await;
+        if let Ok(photo) = portrait_data {
+            (Some(photo.px64x64),ids)
+        } else {
+            (None,ids)
+        }
         if let Some(photo) = res.0 {
             player.photo= Some(photo);
-        }
+        }*/
 
-        if let Some(ids) = res.1 {
+        /*if let Some(ids) = res.1 {
             let esi = self.esi.clone();
             let esik = self.esi.clone();
             let resz = tokio::join!(EsiManager::get_player_corporation(esi, ids.0) ,EsiManager::get_player_alliance(esik, ids.1)); 
             player.corp = resz.0;
             player.alliance = resz.1;
-        }
-     
-        Ok(Some(player))  
-    }
-
-    async fn get_player_corporation(esi:Esi, id:u64) -> Option<Corporation> {
-        //We get Corporation 
-        let join_handle = task::spawn(async move {
-            let corp_resp = esi.group_corporation().get_public_info(id).await;
-            if let Ok(corp_info) = corp_resp {
-                let corp = Corporation{
-                    id,
-                    name: corp_info.name.clone(),
-                };
-                Some(corp)
-            } else {
-                None
-            }
-        });
-        join_handle.await.unwrap()
-    }
-
-    async fn get_player_alliance(esi:Esi, id:u64) -> Option<Alliance> {
-        let join_handle = task::spawn(async move {
-            let ally_resp = esi.group_alliance().get_info(id).await;
-            if let Ok(ally) =  ally_resp {
-                let alliance = Alliance{
-                    id,
-                    name: ally.name,
-                };
-                Some(alliance)
-            } else {
-                None
-            }
-        });
-        join_handle.await.unwrap()
-    }
+        }*/
+    //}
+   
 }
