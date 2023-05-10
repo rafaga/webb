@@ -249,13 +249,16 @@ impl<'a> EsiManager<'a> {
         // We get player Corporatioin ID, Alliance ID and Photo.
         let esi = self.esi.clone();   
         let join_handle = task::spawn(async move {
-            let asyncdata = esi.group_character().get_public_info(id).await;
-            if let Ok(public_data) = asyncdata {
-                let data = (public_data.corporation_id,public_data.alliance_id);
-                return Some(data);
-            }
-            else {
-                return None;
+            match esi.group_character().get_public_info(id).await{
+                Ok(public_data) => {
+                    let data = (public_data.corporation_id,public_data.alliance_id);
+                    Some(data)
+                },
+                Err(the_error) => {
+                    panic!("{}", the_error);
+                    None
+                }
+
             }
         });
         let result = join_handle.await?; 
