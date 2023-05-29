@@ -231,7 +231,7 @@ impl<'a> EsiManager<'a> {
         player.name = data.name;
         //character id
         let split:Vec<&str> = data.sub.split(":").collect();
-        player.id = split[2].as_ptr() as u64;
+        player.id = split[2].parse::<u64>().unwrap();
         if player.auth != None {
             // owner
             player.auth.as_mut().unwrap().owner = data.owner;
