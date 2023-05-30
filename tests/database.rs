@@ -2,7 +2,6 @@
 mod tests_database {
     use std::path::Path;
     use std::fs;
-
     use webb::objects::{Character, Corporation, Alliance};
 
     #[test]
@@ -69,29 +68,31 @@ mod tests_database {
         let scope = vec!["publicData"];
         let path_str = Some("tests/tests2.db");
         let path = Path::new(path_str.unwrap());
+        let mut vec = Vec::new();
         if path.exists() && path.is_file() {
             let _ = fs::remove_file(path);
         }
 
         let mut esimon = webb::esi::EsiManager::new(app_data[0],app_data[1],app_data[2],app_data[3], scope, None); 
         let (url,_rand) = esimon.esi.get_authorize_url().unwrap();
+        
         match open::that(&url){
             Ok(()) => {
-                if let Ok(Some(player)) = esimon.auth_user(4500){
-                    assert_ne!(player.id,0);
+                match esimon.auth_user(4500){
+                    Ok(Some(player)) => {
+                        vec.push(player);
+                        assert_ne!(vec[0].name,"");
+                    },
+                    Ok(None) => {
+                        panic!("No user has been authenticated");
+                    },
+                    Err(esi_error) => {
+                        panic!("An error occurred has ocurred: {}", esi_error);
+                    }
                 }
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
-
-        /*let mut vec = Vec::new();
-        let mut char = Character::new();
-        char.id = 1;
-        char.name = String::from("test");
-        char.corp = Some(Corporation{id:12, name:String::from("test")});
-        char.alliance = Some(Alliance{id:2, name:String::from("test")});
-        vec.push(char);
-        assert_eq!(esimon.add_characters(vec),Ok(true));*/
     }
 
     

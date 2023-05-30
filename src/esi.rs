@@ -10,8 +10,6 @@ use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
-use tokio::task;
-use futures::executor::block_on;
 
 
 pub struct EsiManager<'a>{
@@ -240,7 +238,9 @@ impl<'a> EsiManager<'a> {
             //expiration Date
             let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
             player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
-            self.esi.update_spec().await?;        
+            self.esi.update_spec().await?;
+            
+            //BUG HERE    
             let public_info = self.esi.group_character().get_public_info(player.id).await?;
             let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
             let corp = Corporation{
