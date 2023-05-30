@@ -240,8 +240,8 @@ impl<'a> EsiManager<'a> {
             player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
             self.esi.update_spec().await?;
             
-            //BUG HERE    
-            let public_info = self.esi.group_character().get_public_info(player.id).await?;
+            //BUG HERE 
+            /*let public_info = self.esi.group_character().get_public_info(player.id).await?;
             let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
             let corp = Corporation{
                 id: public_info.corporation_id,
@@ -253,7 +253,7 @@ impl<'a> EsiManager<'a> {
                 id: public_info.alliance_id,
                 name: ally_info.name,
             };
-            player.alliance = Some(ally);
+            player.alliance = Some(ally);*/
             let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
             player.photo = Some(player_portraits.px64x64);
         }
