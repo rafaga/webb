@@ -50,6 +50,12 @@ impl Character{
     }
 }
 
+impl Default for Character{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone,PartialEq,Debug)]
 pub struct Corporation {
     pub id: u64,

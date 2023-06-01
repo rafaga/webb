@@ -32,9 +32,9 @@ impl Service<Request<Body>> for AuthService {
                 let pnq = req.uri().path_and_query();
                 if let Some(params) = pnq.unwrap().query() {
                     let mut message:(String,String)=(String::new(),String::new()); 
-                    let parameters = params.split("&").collect::<Vec<&str>>();
+                    let parameters = params.split('&').collect::<Vec<&str>>();
                     for param in parameters {
-                        let p = param.split("=").collect::<Vec<&str>>();
+                        let p = param.split('=').collect::<Vec<&str>>();
                         match p[0] {
                             "code" => {
                                 message.0 = p[1].to_string();
