@@ -85,7 +85,7 @@ impl PlayerDatabase{
     
     // Updated
     pub(crate) fn update_character(conn: &Connection, character: Character) -> Result<usize,Error> {
-        let mut query = String::from("UPDATE eveCharacter SET name = ?, alliance = ?, corp = ?, ");
+        let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
         query += "lastlogon = ? WHERE characterId = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
         let params = rusqlite::params![character.name,
