@@ -22,7 +22,103 @@ pub struct EsiManager<'a>{
 }
 
 impl<'a> EsiManager<'a> {
-    pub fn write_character(&mut self, char:Character) -> Result<usize,Error> {
+
+    // Alliance
+    pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+    
+        let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
+        let rows;
+        if !players.is_empty() {
+            rows = PlayerDatabase::update_alliance(&conn, alliance)?;
+        } else {
+            rows = PlayerDatabase::insert_alliance(&conn, alliance)?;
+        };
+        Ok(rows)
+    }
+
+    pub fn read_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<Vec<Alliance>,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+    
+        let result;
+        if let Some(id_ally) = alliance_vec {
+            result = PlayerDatabase::select_alliance(&conn,id_ally)?;
+        } else {
+            result = PlayerDatabase::select_alliance(&conn,vec![])?;
+        };
+        Ok(result)
+    }
+
+    pub fn remove_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+
+        let result;
+        if let Some(id_ally) = alliance_vec {
+            result = PlayerDatabase::delete_alliance(&conn,id_ally)?;
+        } else {
+            result = PlayerDatabase::delete_alliance(&conn,vec![])?;
+        }
+        Ok(result)
+    }
+
+    // Corporation
+    pub fn write_corporation(&mut self, corp:&Corporation) -> Result<usize,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+    
+        let players = PlayerDatabase::select_alliance(&conn, vec![corp.id])?;
+        let rows;
+        if !players.is_empty() {
+            rows = PlayerDatabase::update_corporation(&conn, corp)?;
+        } else {
+            rows = PlayerDatabase::insert_corporation(&conn, corp)?;
+        };
+        Ok(rows)
+    }
+
+    pub fn read_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<Vec<Corporation>,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+    
+        let result;
+        if let Some(id_corp) = corporation_vec {
+            result = PlayerDatabase::select_corporation(&conn,id_corp)?;
+        } else {
+            result = PlayerDatabase::select_corporation(&conn,vec![])?;
+        };
+        Ok(result)
+    }
+
+    pub fn remove_corporation(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+
+        let result;
+        if let Some(id_ally) = alliance_vec {
+            result = PlayerDatabase::delete_corporation(&conn,id_ally)?;
+        } else {
+            result = PlayerDatabase::delete_corporation(&conn,vec![])?;
+        }
+        Ok(result)
+    }
+
+    //Characters
+    pub fn write_character(&mut self, char:&Character) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
         let mut statement = conn.prepare(query.as_str())?;
@@ -35,6 +131,15 @@ impl<'a> EsiManager<'a> {
         } else {
             rows = PlayerDatabase::insert_character(&conn, char)?;
         };
+        
+        if let Some(corp) = &char.corp {
+            let _ = self.write_corporation(corp);
+        }
+
+        if let Some(alliance) = &char.alliance {
+            let _ = self.write_alliance(alliance);
+        }
+
         Ok(rows)
     }
 
@@ -61,9 +166,9 @@ impl<'a> EsiManager<'a> {
 
         let result;
         if let Some(id_chars) = char_vec {
-            result = PlayerDatabase::del_characters(&conn,id_chars)?;
+            result = PlayerDatabase::delete_characters(&conn,id_chars)?;
         } else {
-            result = PlayerDatabase::del_characters(&conn,vec![])?;
+            result = PlayerDatabase::delete_characters(&conn,vec![])?;
         }
         Ok(result)
     }
@@ -161,8 +266,8 @@ impl<'a> EsiManager<'a> {
             player.photo = player_portraits.px64x64;
         }
 
-        let new_player = player.clone();
-        self.write_character(new_player)?;
+        //let new_player = player.clone();
+        self.write_character(&player)?;
         Ok(Some(player))
     }
    
