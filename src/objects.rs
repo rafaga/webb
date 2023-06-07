@@ -27,6 +27,7 @@ pub struct Character {
     pub corp: Option<Corporation>,
     pub alliance: Option<Alliance>,
     pub photo: Option<String>,
+    pub location: u64,
 }
 
 impl Character{
@@ -45,7 +46,8 @@ impl Character{
             auth: Some(auth),
             corp: None,
             alliance: None,
-            photo: None
+            photo: None,
+            location: 0
         }
     }
 }
@@ -74,6 +76,19 @@ impl Default for Corporation{
     }
 }
 
+impl BasicCatalog for Corporation {
+    type Output = u64;
+
+    fn id(&self) -> Self::Output {
+        self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+
 #[derive(Clone,PartialEq,Debug)]
 pub struct Alliance {
     pub id: u64,
@@ -92,5 +107,23 @@ impl Default for Alliance{
     }
 }
 
+impl BasicCatalog for Alliance {
+    type Output = u64;
 
+    fn id(&self) -> Self::Output {
+        self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+
+pub trait BasicCatalog{
+    type Output;
+
+    fn id(&self) -> Self::Output;
+    fn name(&self) -> &str;
+}
 

@@ -11,6 +11,7 @@ use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
 
+
 use self::player_database::PlayerDatabase;
 pub mod player_database;
 
@@ -102,14 +103,14 @@ impl<'a> EsiManager<'a> {
         Ok(result)
     }
 
-    pub fn remove_corporation(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+    pub fn remove_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
 
         let result;
-        if let Some(id_ally) = alliance_vec {
+        if let Some(id_ally) = corporation_vec {
             result = PlayerDatabase::delete_corporation(&conn,id_ally)?;
         } else {
             result = PlayerDatabase::delete_corporation(&conn,vec![])?;
@@ -124,6 +125,15 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
     
+        // first we need to assure that Corporation and alliance existys on database
+        if let Some(corp) = &char.corp {
+            let _ = self.write_corporation(corp)?;
+        }
+
+        if let Some(alliance) = &char.alliance {
+            let _ = self.write_alliance(alliance)?;
+        }
+
         let players = PlayerDatabase::select_characters(&conn, vec![char.id])?;
         let rows;
         if !players.is_empty() {
@@ -132,14 +142,6 @@ impl<'a> EsiManager<'a> {
             rows = PlayerDatabase::insert_character(&conn, char)?;
         };
         
-        if let Some(corp) = &char.corp {
-            let _ = self.write_corporation(corp);
-        }
-
-        if let Some(alliance) = &char.alliance {
-            let _ = self.write_alliance(alliance);
-        }
-
         Ok(rows)
     }
 
@@ -253,20 +255,19 @@ impl<'a> EsiManager<'a> {
                 name: corp_info.name,
             };
             player.corp = Some(corp);
-            let mut ally = None;
             if let Some(ally_id) = public_info.alliance_id{
                 let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
-                ally = Some(Alliance {
+                let ally = Alliance {
                     id: ally_id,
                     name: ally_info.name,
-                });
-            }        
-            player.alliance = ally;
+                };
+                player.alliance = Some(ally);
+            }
             let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
             player.photo = player_portraits.px64x64;
+            let location = self.esi.group_location().get_location(player.id).await?;
+            player.location = location.solar_system_id;
         }
-
-        //let new_player = player.clone();
         self.write_character(&player)?;
         Ok(Some(player))
     }
