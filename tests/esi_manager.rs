@@ -221,6 +221,7 @@ mod esi_manager{
 
     // required scope: publicData, esi-location.read_location.v1
     #[test]
+    #[cfg_attr(not(feature = "esi-api-test"), ignore)]
     fn esi_get_public_data() {
         let scope = vec!["publicData","esi-location.read_location.v1"];
         let path_str = Some("tests/databases/esi0.db");
@@ -252,5 +253,20 @@ mod esi_manager{
         }
     }
 
+    #[test]
+    fn db_get_characters() {
+        let scope = vec![""];
 
+        let path_str = "tests/databases/char0.db";
+        let path = Path::new(path_str);
+        if !path.exists() && !path.is_file() {
+            panic!("test database file not exists.")
+        }
+
+        let mut esimon = webb::esi::EsiManager::new(*USER_AGENT, &CLIENT_ID,*SECRET_KEY,*CALLBACK, scope, Some(path_str)); 
+        let res_chars = esimon.read_characters(None);
+        if let Ok(chars) = res_chars {
+            assert_eq!(chars.len(),1);
+        }
+    }
 }

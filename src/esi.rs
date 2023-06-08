@@ -32,11 +32,10 @@ impl<'a> EsiManager<'a> {
         let _ = statement.query([])?;
     
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
-        let rows;
-        if !players.is_empty() {
-            rows = PlayerDatabase::update_alliance(&conn, alliance)?;
+        let rows = if !players.is_empty() {
+            PlayerDatabase::update_alliance(&conn, alliance)?
         } else {
-            rows = PlayerDatabase::insert_alliance(&conn, alliance)?;
+            PlayerDatabase::insert_alliance(&conn, alliance)?
         };
         Ok(rows)
     }
@@ -47,11 +46,10 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
     
-        let result;
-        if let Some(id_ally) = alliance_vec {
-            result = PlayerDatabase::select_alliance(&conn,id_ally)?;
+        let result = if let Some(id_ally) = alliance_vec {
+            PlayerDatabase::select_alliance(&conn,id_ally)?
         } else {
-            result = PlayerDatabase::select_alliance(&conn,vec![])?;
+            PlayerDatabase::select_alliance(&conn,vec![])?
         };
         Ok(result)
     }
@@ -62,12 +60,11 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
 
-        let result;
-        if let Some(id_ally) = alliance_vec {
-            result = PlayerDatabase::delete_alliance(&conn,id_ally)?;
+        let result = if let Some(id_ally) = alliance_vec {
+            PlayerDatabase::delete_alliance(&conn,id_ally)?
         } else {
-            result = PlayerDatabase::delete_alliance(&conn,vec![])?;
-        }
+            PlayerDatabase::delete_alliance(&conn,vec![])?
+        };
         Ok(result)
     }
 
@@ -79,11 +76,10 @@ impl<'a> EsiManager<'a> {
         let _ = statement.query([])?;
     
         let players = PlayerDatabase::select_alliance(&conn, vec![corp.id])?;
-        let rows;
-        if !players.is_empty() {
-            rows = PlayerDatabase::update_corporation(&conn, corp)?;
+        let rows = if !players.is_empty() {
+            PlayerDatabase::update_corporation(&conn, corp)?
         } else {
-            rows = PlayerDatabase::insert_corporation(&conn, corp)?;
+            PlayerDatabase::insert_corporation(&conn, corp)?
         };
         Ok(rows)
     }
@@ -94,11 +90,10 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
     
-        let result;
-        if let Some(id_corp) = corporation_vec {
-            result = PlayerDatabase::select_corporation(&conn,id_corp)?;
+        let result = if let Some(id_corp) = corporation_vec {
+            PlayerDatabase::select_corporation(&conn,id_corp)?
         } else {
-            result = PlayerDatabase::select_corporation(&conn,vec![])?;
+            PlayerDatabase::select_corporation(&conn,vec![])?
         };
         Ok(result)
     }
@@ -109,12 +104,11 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
 
-        let result;
-        if let Some(id_ally) = corporation_vec {
-            result = PlayerDatabase::delete_corporation(&conn,id_ally)?;
+        let result = if let Some(id_ally) = corporation_vec {
+            PlayerDatabase::delete_corporation(&conn,id_ally)?
         } else {
-            result = PlayerDatabase::delete_corporation(&conn,vec![])?;
-        }
+            PlayerDatabase::delete_corporation(&conn,vec![])?
+        };
         Ok(result)
     }
 
@@ -135,13 +129,11 @@ impl<'a> EsiManager<'a> {
         }
 
         let players = PlayerDatabase::select_characters(&conn, vec![char.id])?;
-        let rows;
-        if !players.is_empty() {
-            rows = PlayerDatabase::update_character(&conn, char)?;
+        let rows = if !players.is_empty() {
+            PlayerDatabase::update_character(&conn, char)?
         } else {
-            rows = PlayerDatabase::insert_character(&conn, char)?;
+            PlayerDatabase::insert_character(&conn, char)?
         };
-        
         Ok(rows)
     }
 
@@ -166,12 +158,11 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
 
-        let result;
-        if let Some(id_chars) = char_vec {
-            result = PlayerDatabase::delete_characters(&conn,id_chars)?;
+        let result = if let Some(id_chars) = char_vec {
+            PlayerDatabase::delete_characters(&conn,id_chars)?
         } else {
-            result = PlayerDatabase::delete_characters(&conn,vec![])?;
-        }
+            PlayerDatabase::delete_characters(&conn,vec![])?
+        };
         Ok(result)
     }
 
@@ -192,7 +183,7 @@ impl<'a> EsiManager<'a> {
             path = Path::new("telescope.db");
         }
 
-        let obj = EsiManager {
+        let mut obj = EsiManager {
             esi,
             characters: Vec::new(),
             path,
@@ -204,6 +195,14 @@ impl<'a> EsiManager<'a> {
             let _ = PlayerDatabase::migrate_database();
             if let Err(e) = PlayerDatabase::create_database(obj.path, obj.uuid) {
                 panic!("Error: {}", e);
+            }
+        } else {
+            // cargar jugadores existentes
+            let res_conn = Connection::open_with_flags(obj.path, PlayerDatabase::open_flags());
+            if let Ok(conn) = res_conn{
+                if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]){
+                    obj.characters = chars;
+                }
             }
         }
         

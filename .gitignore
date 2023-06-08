@@ -1,6 +1,7 @@
 /target
 /Cargo.lock
 .vscode/
-tests/databases/*.db
+tests/databases/test*.db
+tests/databases/esi*.db
 src/esi/data.rs
 .DS_Store
