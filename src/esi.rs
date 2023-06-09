@@ -75,8 +75,8 @@ impl<'a> EsiManager<'a> {
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
     
-        let players = PlayerDatabase::select_alliance(&conn, vec![corp.id])?;
-        let rows = if !players.is_empty() {
+        let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
+        let rows = if !corps.is_empty() {
             PlayerDatabase::update_corporation(&conn, corp)?
         } else {
             PlayerDatabase::insert_corporation(&conn, corp)?
