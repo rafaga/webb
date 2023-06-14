@@ -184,7 +184,7 @@ impl PlayerDatabase{
     }
 
     pub(crate) fn update_corporation(conn: &Connection, corp: &Corporation) -> Result<usize,Error> {
-        PlayerDatabase::update_catalog(conn, "corporation", corp)
+        PlayerDatabase::update_catalog(conn, "corp", corp)
     }
     
     pub(crate) fn insert_corporation(conn: &Connection, corp: &Corporation) -> Result<usize,Error> {
