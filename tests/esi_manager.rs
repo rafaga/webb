@@ -223,7 +223,7 @@ mod esi_manager{
     #[test]
     #[cfg_attr(not(feature = "esi-api-test"), ignore)]
     fn esi_get_public_data() {
-        let scope = vec!["publicData","esi-location.read_location.v1"];
+        let scope = vec!["publicData"]; //,"esi-location.read_location.v1"
         let path_str = Some("tests/databases/esi0.db");
         let path = Path::new(path_str.unwrap());
         let mut vec = Vec::new();
@@ -239,7 +239,9 @@ mod esi_manager{
                 match esimon.auth_user(4500){
                     Ok(Some(player)) => {
                         vec.push(player);
-                        assert_ne!(vec[0].name,"");
+                        //println!("{}",vec[0].photo.as_ref().unwrap());
+                        assert_ne!(vec[0].photo,None);
+                        //assert!(false);
                     },
                     Ok(None) => {
                         panic!("No user has been authenticated");

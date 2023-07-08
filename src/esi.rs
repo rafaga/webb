@@ -1,8 +1,9 @@
+use hyper::body::HttpBody;
 use rfesi::prelude::*;
 use tokio::time::{Instant, timeout_at};
 use tokio::time::Duration;
 use std::net::SocketAddr;
-use hyper::Server;
+use hyper::{Server,Client};
 use crate::auth_service::MakeSvc;
 use crate::objects::{Character,Corporation,Alliance};
 use chrono::{DateTime,NaiveDateTime};
@@ -10,6 +11,8 @@ use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
 use uuid::Uuid;
+use hyper_tls::HttpsConnector;
+
 
 
 use self::player_database::PlayerDatabase;
@@ -19,6 +22,7 @@ pub struct EsiManager<'a>{
     pub esi: Esi,
     pub characters: Vec<Character>,
     pub path: &'a Path,
+    pub active_character: Option<&'a mut Character>,
     uuid: Uuid,
 }
 
@@ -174,7 +178,6 @@ impl<'a> EsiManager<'a> {
             .callback_url(callback_url)
             .scope(scope.join(" ").as_str())
             .build().unwrap();
-
         let path;
 
         if let Some(pathz) = database_path {
@@ -188,6 +191,7 @@ impl<'a> EsiManager<'a> {
             characters: Vec::new(),
             path,
             uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes()),
+            active_character: None,
         };
 
         if !obj.path.exists() {
@@ -205,8 +209,39 @@ impl<'a> EsiManager<'a> {
                 }
             }
         }
-        
+
         obj
+    }
+
+    pub async fn get_location(&self, player_id: u64) -> Result<u64,Error> {
+        if let Ok(location) = self.esi.group_location().get_location(player_id).await {
+            let player_location = location.solar_system_id;
+            Ok(player_location)
+        } else {
+            Ok(0)
+        }
+    }
+
+    async fn get_portrait_data(&mut self, url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
+        let https = HttpsConnector::new();
+        let client = Client::builder()
+            .build::<_, hyper::Body>(https);
+        let uri;
+        if let Ok(parsed_uri) = url.parse::<hyper::Uri>() {
+            uri = parsed_uri;
+        } else {
+            return Ok(None);
+        }
+        let mut resp = client.get(uri).await?;
+        //println!("Response: {}", resp.status());
+
+        // And now...
+        let mut photo = vec![];
+        while let Some(chunk) = resp.body_mut().data().await {
+            photo.extend_from_slice(&chunk?);
+        }
+
+        Ok(Some(photo))
     }
 
     #[tokio::main]
@@ -263,9 +298,9 @@ impl<'a> EsiManager<'a> {
                 player.alliance = Some(ally);
             }
             let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-            player.photo = player_portraits.px64x64;
-            let location = self.esi.group_location().get_location(player.id).await?;
-            player.location = location.solar_system_id;
+            if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
+                    player.photo = Some(photo_vec);
+            }
         }
         self.write_character(&player)?;
         Ok(Some(player))

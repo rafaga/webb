@@ -19,14 +19,14 @@ pub struct AuthData{
 
 
 #[derive(Clone,PartialEq)]
-pub struct Character {
+pub struct Character<> {
     pub id: u64,
     pub name: String,
     pub last_logon: DateTime<Utc>,
     pub auth: Option<AuthData>,
     pub corp: Option<Corporation>,
     pub alliance: Option<Alliance>,
-    pub photo: Option<String>,
+    pub photo: Option<Vec<u8>>,
     pub location: u64,
 }
 
