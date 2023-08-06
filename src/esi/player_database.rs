@@ -6,15 +6,18 @@ use std::path::Path;
 use uuid::Uuid;
 
 pub(crate) struct PlayerDatabase {
-
 }
 
 impl PlayerDatabase{
 
-    pub(crate) fn create_database(path: &Path,uuid: Uuid) -> Result<bool,Error> {
+    pub(crate) fn create_database(path: &Path,_uuid: Uuid) -> Result<bool,Error> {
         let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
-        let mut query = ["PRAGMA key = '",uuid.to_string().as_str(),"'"].concat();
+        let mut query;
+        #[cfg(feature = "crypted-db")]
+        let mut query = ["PRAGMA key = '",_uuid.to_string().as_str(),"'"].concat();
+        #[cfg(feature = "crypted-db")]
         let mut statement = conn.prepare(&query)?;
+        #[cfg(feature = "crypted-db")]
         let _ = statement.query([])?;
         
         //Character Public Data

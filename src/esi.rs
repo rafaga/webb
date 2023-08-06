@@ -10,10 +10,8 @@ use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
-use uuid::Uuid;
 use hyper_tls::HttpsConnector;
-
-
+use uuid::Uuid;
 
 use self::player_database::PlayerDatabase;
 pub mod player_database;
@@ -28,12 +26,20 @@ pub struct EsiManager<'a>{
 
 impl<'a> EsiManager<'a> {
 
-    // Alliance
-    pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+    #[cfg(feature = "crypted-db")]
+    fn crypted_database_open(&mut self, conn: &Connection) -> Result<(),Error> {
         let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
         let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
+        Ok(())
+    }
+
+    // Alliance
+    pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
+        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
         let rows = if !players.is_empty() {
@@ -46,9 +52,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<Vec<Alliance>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::select_alliance(&conn,id_ally)?
@@ -60,9 +65,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::delete_alliance(&conn,id_ally)?
@@ -75,9 +79,8 @@ impl<'a> EsiManager<'a> {
     // Corporation
     pub fn write_corporation(&mut self, corp:&Corporation) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
@@ -90,9 +93,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<Vec<Corporation>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         let result = if let Some(id_corp) = corporation_vec {
             PlayerDatabase::select_corporation(&conn,id_corp)?
@@ -104,9 +106,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = corporation_vec {
             PlayerDatabase::delete_corporation(&conn,id_ally)?
@@ -119,9 +120,8 @@ impl<'a> EsiManager<'a> {
     //Characters
     pub fn write_character(&mut self, char:&Character) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         // first we need to assure that Corporation and alliance existys on database
         if let Some(corp) = &char.corp {
@@ -143,9 +143,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<Vec<Character>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
     
         let result;
         if let Some(id_chars) = char_vec {
@@ -158,9 +157,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        self.crypted_database_open(&conn)?;
 
         let result = if let Some(id_chars) = char_vec {
             PlayerDatabase::delete_characters(&conn,id_chars)?
