@@ -7,7 +7,7 @@ edition = "2021"
 [features]
 default = ["crypted-db"]
 esi-api-test = []
-crypted-db = ["dep:uuid"]
+crypted-db = []
 
 [dependencies]
 chrono = "0.4"
