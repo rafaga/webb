@@ -12,16 +12,15 @@ impl PlayerDatabase{
 
     pub(crate) fn create_database(path: &Path,_uuid: Uuid) -> Result<bool,Error> {
         let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
-        let mut query;
         #[cfg(feature = "crypted-db")]
-        let mut query = ["PRAGMA key = '",_uuid.to_string().as_str(),"'"].concat();
+        let query = ["PRAGMA key = '",_uuid.to_string().as_str(),"'"].concat();
         #[cfg(feature = "crypted-db")]
         let mut statement = conn.prepare(&query)?;
         #[cfg(feature = "crypted-db")]
         let _ = statement.query([])?;
         
         //Character Public Data
-        query = String::from("CREATE TABLE char (id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
+        let mut query = String::from("CREATE TABLE char (id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
         query += " corporation INTEGER REFERENCES corp(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " alliance INTEGER REFERENCES alliance(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " portrait BLOB, lastLogon DATETIME NOT NULL, location INTEGER NOT NULL)";
@@ -57,7 +56,7 @@ impl PlayerDatabase{
 
     pub(crate) fn select_characters(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Character>,Error> {
         let mut result = Vec::new();
-        let mut query = String::from("SELECT id, name, corp, alliance, portrait, lastLogon, location FROM char");
+        let mut query = String::from("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char");
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
             query = format!("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char WHERE id IN ({})", vars);
