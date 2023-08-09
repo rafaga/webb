@@ -1,5 +1,6 @@
 use chrono::{DateTime,Utc};
 use rusqlite::{Connection,OpenFlags,ToSql};
+use tokio::time::error::Elapsed;
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
 use std::path::Path;
@@ -82,6 +83,11 @@ impl PlayerDatabase{
             };
             char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
                 Some(PlayerDatabase::select_alliance(conn, vec![value])?[0].clone())
+            } else {
+                None
+            };
+            char.photo = if let Ok(value) = row.get(5){
+                Some(value)
             } else {
                 None
             };
