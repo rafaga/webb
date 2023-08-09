@@ -3,6 +3,7 @@ use rusqlite::{Connection,OpenFlags,ToSql};
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
 use std::path::Path;
+#[cfg(feature = "crypted-db")]
 use uuid::Uuid;
 
 pub(crate) struct PlayerDatabase {
@@ -10,14 +11,19 @@ pub(crate) struct PlayerDatabase {
 
 impl PlayerDatabase{
 
-    pub(crate) fn create_database(path: &Path,_uuid: Uuid) -> Result<bool,Error> {
+    #[cfg(feature = "crypted-db")]
+    pub(crate)fn crypted_database_open( conn: &Connection) -> Result<(),Error> {
+        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
+        let query = ["PRAGMA key = '",uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
+        let _ = statement.query([])?;
+        Ok(())
+    }
+
+    pub(crate) fn create_database(path: &Path) -> Result<bool,Error> {
         let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
-        let query = ["PRAGMA key = '",_uuid.to_string().as_str(),"'"].concat();
-        #[cfg(feature = "crypted-db")]
-        let mut statement = conn.prepare(&query)?;
-        #[cfg(feature = "crypted-db")]
-        let _ = statement.query([])?;
+        PlayerDatabase::crypted_database_open(&conn)?;
         
         //Character Public Data
         let mut query = String::from("CREATE TABLE char (id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
@@ -68,22 +74,33 @@ impl PlayerDatabase{
             let mut char = Character::new();
             char.id             = row.get(0)?;
             char.name           = row.get(1)?;
+
             char.corp = if let Ok(value) = row.get::<usize,u64>(2){
+                Some(PlayerDatabase::select_corporation(conn, vec![value])?[0].clone())
+            } else {
+                None
+            };
+            char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
+                Some(PlayerDatabase::select_alliance(conn, vec![value])?[0].clone())
+            } else {
+                None
+            };
+            /*char.corp = if let Ok(value) = row.get::<usize,u64>(2){
                 Some(Corporation{
                     id: value,
                     name: String::new(),
                 })
             } else {
                 None
-            };
-            char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
+            };*/
+            /*char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
                 Some(Alliance{
                     id: value,
                     name: String::new(),
                 })
             } else {
                 None
-            };
+            };*/
             if let Ok(time) = dt {
                 let utc_dt = DateTime::from_utc(time.naive_utc(),Utc);
                 char.last_logon     = utc_dt;
