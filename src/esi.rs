@@ -212,7 +212,7 @@ impl<'a> EsiManager<'a> {
         }
     }
 
-    async fn get_portrait_data(&mut self, url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
+    pub async fn get_portrait_data(&mut self, url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
         let https = HttpsConnector::new();
         let client = Client::builder()
             .build::<_, hyper::Body>(https);

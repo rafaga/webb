@@ -85,22 +85,6 @@ impl PlayerDatabase{
             } else {
                 None
             };
-            /*char.corp = if let Ok(value) = row.get::<usize,u64>(2){
-                Some(Corporation{
-                    id: value,
-                    name: String::new(),
-                })
-            } else {
-                None
-            };*/
-            /*char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
-                Some(Alliance{
-                    id: value,
-                    name: String::new(),
-                })
-            } else {
-                None
-            };*/
             if let Ok(time) = dt {
                 let utc_dt = DateTime::from_utc(time.naive_utc(),Utc);
                 char.last_logon     = utc_dt;
