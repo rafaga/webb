@@ -3,6 +3,7 @@ use rusqlite::{Connection,OpenFlags,ToSql};
 use tokio::time::error::Elapsed;
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
+use core::slice::SlicePattern;
 use std::path::Path;
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
@@ -86,8 +87,8 @@ impl PlayerDatabase{
             } else {
                 None
             };
-            char.photo = if let Ok(value) = row.get(5){
-                Some(value)
+            char.photo = if let Ok(value) = row.get::<usize,String>(5){
+                Some(value.into_bytes())
             } else {
                 None
             };
