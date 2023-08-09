@@ -3,7 +3,6 @@ use rusqlite::{Connection,OpenFlags,ToSql};
 use tokio::time::error::Elapsed;
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
-use core::slice::SlicePattern;
 use std::path::Path;
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
