@@ -176,7 +176,7 @@ impl PlayerDatabase{
     // Corporation
     pub(crate) fn select_corporation(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Corporation>,Error> {
         let mut result = Vec::new();
-        let mut query = String::from("SELECT id,name FROM corporation");
+        let mut query = String::from("SELECT id,name FROM corp");
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
             query = format!("SELECT id,name FROM corp WHERE id IN ({})", vars);
