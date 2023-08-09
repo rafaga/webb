@@ -1,6 +1,5 @@
 use chrono::{DateTime,Utc};
 use rusqlite::{Connection,OpenFlags,ToSql};
-use tokio::time::error::Elapsed;
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
 use std::path::Path;
@@ -87,7 +86,7 @@ impl PlayerDatabase{
                 None
             };
             char.photo = if let Ok(value) = row.get::<usize,String>(5){
-                Some(value.into_bytes())
+                Some(value.as_bytes().to_vec())
             } else {
                 None
             };
