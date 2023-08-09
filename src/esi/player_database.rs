@@ -131,7 +131,7 @@ impl PlayerDatabase{
         if alliance != 0 {
             statement.raw_bind_parameter(4, alliance)?;
         } 
-        statement.raw_bind_parameter(5, "0")?;
+        statement.raw_bind_parameter(5, player.photo.clone().unwrap())?;
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
         let rows = statement.raw_execute()?;
