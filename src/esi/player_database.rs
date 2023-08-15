@@ -74,7 +74,7 @@ impl PlayerDatabase{
             let mut char = Character::new();
             char.id             = row.get(0)?;
             char.name           = row.get(1)?;
-
+            char.photo          = row.get(5)?;
             char.corp = if let Ok(value) = row.get::<usize,u64>(2){
                 Some(PlayerDatabase::select_corporation(conn, vec![value])?[0].clone())
             } else {
@@ -82,11 +82,6 @@ impl PlayerDatabase{
             };
             char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
                 Some(PlayerDatabase::select_alliance(conn, vec![value])?[0].clone())
-            } else {
-                None
-            };
-            char.photo = if let Ok(value) = row.get::<usize,String>(5){
-                Some(value.as_bytes().to_vec())
             } else {
                 None
             };
