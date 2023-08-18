@@ -5,7 +5,7 @@ use tokio::time::Duration;
 use std::net::SocketAddr;
 use hyper::{Server,Client};
 use crate::auth_service::MakeSvc;
-use crate::objects::{Character,Corporation,Alliance};
+use crate::objects::{Character,Corporation,Alliance, EsiAuthData};
 use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
 use std::path::Path;
@@ -234,7 +234,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
-    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<TokenClaims>,EsiError> {
+    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<EsiAuthData>,EsiError> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
@@ -252,7 +252,23 @@ impl<'a> EsiManager<'a> {
             //eprintln!("{}",err);
             return Ok(None);
         };
-        self.esi.authenticate(result.0.as_str()).await
+        let res = self.esi.authenticate(result.0.as_str()).await.unwrap().unwrap();
+        let auth = crate::objects::EsiAuthData{
+            aud: res.aud,
+            azp: res.azp,
+            exp: res.exp,
+            iat: res.iat,
+            iss: res.iss,
+            jti: res.jti,
+            kid: res.kid,
+            name: res.name,
+            owner: res.owner,
+            region: res.region,
+            sub: res.sub,
+            tenant: res.tenant,
+            tier: res.tier,
+        };
+        Ok(Some(auth))
     }
 
     pub async fn auth_user(&mut self,claims: TokenClaims) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {

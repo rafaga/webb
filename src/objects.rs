@@ -17,6 +17,22 @@ pub struct AuthData{
     pub expiration: Option<DateTime<Utc>>,
 }
 
+#[derive(Clone,PartialEq)]
+pub struct EsiAuthData{
+    pub aud: String,
+    pub azp: String,
+    pub exp: i64,
+    pub iat: i64,
+    pub iss: String,
+    pub jti: String,
+    pub kid: String,
+    pub name: String,
+    pub owner: String,
+    pub region: String,
+    pub sub: String,
+    pub tenant: String,
+    pub tier: String,
+}
 
 #[derive(Clone,PartialEq)]
 pub struct Character<> {
