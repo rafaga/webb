@@ -11,6 +11,7 @@ use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
 use hyper_tls::HttpsConnector;
+use tokio::sync::oneshot::channel;
 
 
 use self::player_database::PlayerDatabase;
@@ -233,10 +234,9 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
-    #[tokio::main]
-    pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<TokenClaims>,EsiError> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
+        let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(),String::new());
         let server = Server::bind(&addr)
@@ -249,25 +249,27 @@ impl<'a> EsiManager<'a> {
             });
         
         if let Err(err) = timeout_at(Instant::now() + Duration::from_secs(300), server).await {
-            eprintln!("{}",err);
+            //eprintln!("{}",err);
             return Ok(None);
         };
-        let claims = self.esi.authenticate(result.0.as_str()).await?;      
+        self.esi.authenticate(result.0.as_str()).await
+    }
 
+    pub async fn auth_user(&mut self,claims: TokenClaims) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         let mut player = Character::new();  
-        let data = claims.unwrap();
+        //let data = claims.unwrap();
         //character name
-        player.name = data.name;
+        player.name = claims.name;
         //character id
-        let split:Vec<&str> = data.sub.split(':').collect();
+        let split:Vec<&str> = claims.sub.split(':').collect();
         player.id = split[2].parse::<u64>().unwrap();
         if player.auth.is_some() {
             // owner
-            player.auth.as_mut().unwrap().owner = data.owner;
+            player.auth.as_mut().unwrap().owner = claims.owner;
             //jti
-            player.auth.as_mut().unwrap().jti= data.jti;
+            player.auth.as_mut().unwrap().jti= claims.jti;
             //expiration Date
-            let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
+            let naive_datetime = NaiveDateTime::from_timestamp_opt(claims.exp, 0);
             player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
             self.esi.update_spec().await?;
             

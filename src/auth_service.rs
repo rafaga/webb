@@ -48,7 +48,7 @@ impl Service<Request<Body>> for AuthService {
                     if !message.0.is_empty() && !message.1.is_empty() {
                         block_on(async {
                             if let Some(tx) = crate::SHARED_TX.lock().await.take() {
-                                let _ = tx.send(message.clone());
+                                let _res = tx.send(message.clone());
                             }
                         });
                         Ok(Response::builder()

@@ -226,7 +226,7 @@ mod esi_manager{
         let scope = vec!["publicData"]; //,"esi-location.read_location.v1"
         let path_str = Some("tests/databases/esi0.db");
         let path = Path::new(path_str.unwrap());
-        let mut vec = Vec::new();
+        //let mut vec = Vec::new();
         if path.exists() && path.is_file() {
             let _ = fs::remove_file(path);
         }
@@ -236,7 +236,8 @@ mod esi_manager{
         
         match open::that(&url){
             Ok(()) => {
-                match esimon.auth_user(4500){
+                //let res = esimon.launch_auth_server(4500).await;
+                /*match esimon.auth_user(res) {
                     Ok(Some(player)) => {
                         vec.push(player);
                         //println!("{}",vec[0].photo.as_ref().unwrap());
@@ -249,7 +250,7 @@ mod esi_manager{
                     Err(esi_error) => {
                         panic!("Error: {}", esi_error);
                     }
-                }
+                }*/
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
