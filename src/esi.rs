@@ -234,7 +234,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
-    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<EsiAuthData>,EsiError> {
+    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<EsiAuthData>,Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
