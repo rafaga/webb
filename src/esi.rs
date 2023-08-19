@@ -271,7 +271,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(auth))
     }
 
-    pub async fn auth_user(&mut self,claims: TokenClaims) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn auth_user(&mut self,claims: EsiAuthData) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         let mut player = Character::new();  
         //let data = claims.unwrap();
         //character name
