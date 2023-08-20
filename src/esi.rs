@@ -17,6 +17,7 @@ use tokio::sync::oneshot::channel;
 use self::player_database::PlayerDatabase;
 pub mod player_database;
 
+#[derive(Clone)]
 pub struct EsiManager<'a>{
     pub esi: Esi,
     pub characters: Vec<Character>,
@@ -25,8 +26,6 @@ pub struct EsiManager<'a>{
 }
 
 impl<'a> EsiManager<'a> {
-
-
 
     // Alliance
     pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
