@@ -233,7 +233,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
-    pub async fn launch_auth_server(&mut self,port: u16) -> Result<Option<EsiAuthData>,Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn launch_auth_server(port: u16) -> Result<(String,String),Box<dyn std::error::Error + Send + Sync>> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
@@ -246,31 +246,12 @@ impl<'a> EsiManager<'a> {
                     result = values;
                 }
             });
-        
-        if let Err(err) = timeout_at(Instant::now() + Duration::from_secs(300), server).await {
-            //eprintln!("{}",err);
-            return Ok(None);
-        };
-        let res = self.esi.authenticate(result.0.as_str()).await.unwrap().unwrap();
-        let auth = crate::objects::EsiAuthData{
-            aud: res.aud,
-            azp: res.azp,
-            exp: res.exp,
-            iat: res.iat,
-            iss: res.iss,
-            jti: res.jti,
-            kid: res.kid,
-            name: res.name,
-            owner: res.owner,
-            region: res.region,
-            sub: res.sub,
-            tenant: res.tenant,
-            tier: res.tier,
-        };
-        Ok(Some(auth))
+        let _res = timeout_at(Instant::now() + Duration::from_secs(300), server).await?;
+        Ok(result)
     }
 
-    pub async fn auth_user(&mut self,claims: EsiAuthData) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn auth_user(&mut self,reply: (String,String)) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+        let claims = self.esi.authenticate(reply.0.as_str()).await.unwrap().unwrap();
         let mut player = Character::new();  
         //let data = claims.unwrap();
         //character name
