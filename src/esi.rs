@@ -233,6 +233,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
+    #[tokio::main]
     pub async fn launch_auth_server(port: u16) -> Result<(String,String),Error> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
