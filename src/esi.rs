@@ -212,6 +212,7 @@ impl<'a> EsiManager<'a> {
         }
     }
 
+    #[tokio::main]
     pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
         let https = HttpsConnector::new();
         let client = Client::builder()
