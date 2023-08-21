@@ -5,7 +5,7 @@ use tokio::time::Duration;
 use std::net::SocketAddr;
 use hyper::{Server,Client};
 use crate::auth_service::MakeSvc;
-use crate::objects::{Character,Corporation,Alliance, EsiAuthData};
+use crate::objects::{Character,Corporation,Alliance};
 use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
 use std::path::Path;
@@ -233,7 +233,7 @@ impl<'a> EsiManager<'a> {
         Ok(Some(photo))
     }
 
-    pub async fn launch_auth_server(port: u16) -> Result<(String,String),Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn launch_auth_server(port: u16) -> Result<(String,String),Error> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
@@ -246,7 +246,7 @@ impl<'a> EsiManager<'a> {
                     result = values;
                 }
             });
-        let _res = timeout_at(Instant::now() + Duration::from_secs(300), server).await?;
+        let _ = timeout_at(Instant::now() + Duration::from_secs(300), server).await;
         Ok(result)
     }
 
