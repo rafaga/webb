@@ -213,23 +213,24 @@ impl<'a> EsiManager<'a> {
     }
 
     #[tokio::main]
-    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
+    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,String> {
         let https = HttpsConnector::new();
         let client = Client::builder()
             .build::<_, hyper::Body>(https);
         let uri;
-        if let Ok(parsed_uri) = url.parse::<hyper::Uri>() {
-            uri = parsed_uri;
-        } else {
-            return Ok(None);
+        match url.parse::<hyper::Uri>(){
+            Ok(parsed_uri) => uri = parsed_uri,
+            Err(t_error) => return Err(t_error.to_string()),
+        };
+        let mut resp;
+        match client.get(uri).await {
+            Ok(body) => resp = body,
+            Err(t_error) => return Err(t_error.to_string()),
         }
-        let mut resp = client.get(uri).await?;
-        //println!("Response: {}", resp.status());
-
         // And now...
         let mut photo = vec![];
-        while let Some(chunk) = resp.body_mut().data().await {
-            photo.extend_from_slice(&chunk?);
+        while let Some(Ok(chunk)) = resp.body_mut().data().await {
+            photo.extend_from_slice(&chunk);
         }
         Ok(Some(photo))
     }
