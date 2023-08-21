@@ -220,7 +220,7 @@ impl<'a> EsiManager<'a> {
         let uri;
         match url.parse::<hyper::Uri>(){
             Ok(parsed_uri) => uri = parsed_uri,
-            Err(t_error) => return Err(t_error.to_string()),
+            Err(t_error) => return Err(t_error.to_string() + " > " + url),
         };
         let mut resp;
         match client.get(uri).await {
