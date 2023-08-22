@@ -74,7 +74,7 @@ mod esi_manager{
         
         let mut zcorp = Corporation::new();
         zcorp.id = 1;
-        zcorp.name = "Test Corporation".to_string();
+        zcorp.name = "Alfa Corporation".to_string();
 
         match mon.write_corporation(&zcorp){
             Ok(rows_affected) => {
@@ -261,9 +261,10 @@ mod esi_manager{
 
     #[test]
     fn get_player_photo() {
-        let url = "https://images.evetech.net/characters/95103254/portrait?tenant=tranquility&size=64";
+        let url = "https://images.evetech.net/characters/95093260/portrait?tenant=tranquility&size=64";
         if let Ok(photo) = webb::esi::EsiManager::get_player_photo(url){
-            assert_ne!(photo.unwrap().len(),0);
+            let lenx = &photo.as_ref().unwrap().len();
+            assert_eq!(*lenx,2047);
         } 
     }
 
