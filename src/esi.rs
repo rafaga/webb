@@ -10,20 +10,19 @@ use chrono::{DateTime,NaiveDateTime};
 use chrono::Utc;
 use std::path::Path;
 use rusqlite::*;
-use uuid::Uuid;
 use hyper_tls::HttpsConnector;
-
+use tokio::sync::oneshot::channel;
 
 
 use self::player_database::PlayerDatabase;
 pub mod player_database;
 
+#[derive(Clone)]
 pub struct EsiManager<'a>{
     pub esi: Esi,
     pub characters: Vec<Character>,
     pub path: &'a Path,
-    pub active_character: Option<&'a mut Character>,
-    uuid: Uuid,
+    pub active_character: Option<u64>,
 }
 
 impl<'a> EsiManager<'a> {
@@ -31,9 +30,9 @@ impl<'a> EsiManager<'a> {
     // Alliance
     pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
         let rows = if !players.is_empty() {
@@ -46,9 +45,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<Vec<Alliance>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::select_alliance(&conn,id_ally)?
@@ -60,9 +58,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::delete_alliance(&conn,id_ally)?
@@ -75,9 +72,8 @@ impl<'a> EsiManager<'a> {
     // Corporation
     pub fn write_corporation(&mut self, corp:&Corporation) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
@@ -90,9 +86,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<Vec<Corporation>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         let result = if let Some(id_corp) = corporation_vec {
             PlayerDatabase::select_corporation(&conn,id_corp)?
@@ -104,9 +99,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = corporation_vec {
             PlayerDatabase::delete_corporation(&conn,id_ally)?
@@ -119,9 +113,8 @@ impl<'a> EsiManager<'a> {
     //Characters
     pub fn write_character(&mut self, char:&Character) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         // first we need to assure that Corporation and alliance existys on database
         if let Some(corp) = &char.corp {
@@ -143,9 +136,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<Vec<Character>,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
     
         let result;
         if let Some(id_chars) = char_vec {
@@ -158,9 +150,8 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<usize,Error> {
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        let query = ["PRAGMA key = '",self.uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_chars) = char_vec {
             PlayerDatabase::delete_characters(&conn,id_chars)?
@@ -190,14 +181,13 @@ impl<'a> EsiManager<'a> {
             esi,
             characters: Vec::new(),
             path,
-            uuid: Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes()),
             active_character: None,
         };
 
         if !obj.path.exists() {
             // TODO: migration database schema goes here
             let _ = PlayerDatabase::migrate_database();
-            if let Err(e) = PlayerDatabase::create_database(obj.path, obj.uuid) {
+            if let Err(e) = PlayerDatabase::create_database(obj.path) {
                 panic!("Error: {}", e);
             }
         } else {
@@ -222,32 +212,33 @@ impl<'a> EsiManager<'a> {
         }
     }
 
-    async fn get_portrait_data(&mut self, url: &str) -> Result<Option<Vec<u8>>,hyper::Error> {
+    #[tokio::main]
+    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,String> {
         let https = HttpsConnector::new();
         let client = Client::builder()
             .build::<_, hyper::Body>(https);
         let uri;
-        if let Ok(parsed_uri) = url.parse::<hyper::Uri>() {
-            uri = parsed_uri;
-        } else {
-            return Ok(None);
+        match url.parse::<hyper::Uri>(){
+            Ok(parsed_uri) => uri = parsed_uri,
+            Err(t_error) => return Err(t_error.to_string() + " > " + url),
+        };
+        let mut resp;
+        match client.get(uri).await {
+            Ok(body) => resp = body,
+            Err(t_error) => return Err(t_error.to_string()),
         }
-        let mut resp = client.get(uri).await?;
-        //println!("Response: {}", resp.status());
-
         // And now...
         let mut photo = vec![];
-        while let Some(chunk) = resp.body_mut().data().await {
-            photo.extend_from_slice(&chunk?);
+        while let Some(Ok(chunk)) = resp.body_mut().data().await {
+            photo.extend_from_slice(&chunk);
         }
-
         Ok(Some(photo))
     }
 
     #[tokio::main]
-    pub async fn auth_user(&mut self,port: u16) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn launch_auth_server(port: u16) -> Result<(String,String),Error> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let (tx, rx) = tokio::sync::oneshot::channel::<(String,String)>();
+        let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(),String::new());
         let server = Server::bind(&addr)
@@ -258,27 +249,26 @@ impl<'a> EsiManager<'a> {
                     result = values;
                 }
             });
-        
-        if let Err(err) = timeout_at(Instant::now() + Duration::from_secs(300), server).await {
-            eprintln!("{}",err);
-            return Ok(None);
-        };
-        let claims = self.esi.authenticate(result.0.as_str()).await?;      
+        let _ = timeout_at(Instant::now() + Duration::from_secs(300), server).await;
+        Ok(result)
+    }
 
+    pub async fn auth_user(&mut self,reply: (String,String)) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+        let claims = self.esi.authenticate(reply.0.as_str()).await.unwrap().unwrap();
         let mut player = Character::new();  
-        let data = claims.unwrap();
+        //let data = claims.unwrap();
         //character name
-        player.name = data.name;
+        player.name = claims.name;
         //character id
-        let split:Vec<&str> = data.sub.split(':').collect();
+        let split:Vec<&str> = claims.sub.split(':').collect();
         player.id = split[2].parse::<u64>().unwrap();
         if player.auth.is_some() {
             // owner
-            player.auth.as_mut().unwrap().owner = data.owner;
+            player.auth.as_mut().unwrap().owner = claims.owner;
             //jti
-            player.auth.as_mut().unwrap().jti= data.jti;
+            player.auth.as_mut().unwrap().jti= claims.jti;
             //expiration Date
-            let naive_datetime = NaiveDateTime::from_timestamp_opt(data.exp, 0);
+            let naive_datetime = NaiveDateTime::from_timestamp_opt(claims.exp, 0);
             player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
             self.esi.update_spec().await?;
             
@@ -298,9 +288,10 @@ impl<'a> EsiManager<'a> {
                 player.alliance = Some(ally);
             }
             let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-            if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
+            player.photo = Some(player_portraits.px64x64.unwrap()); 
+            /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
                     player.photo = Some(photo_vec);
-            }
+            }*/
         }
         self.write_character(&player)?;
         Ok(Some(player))

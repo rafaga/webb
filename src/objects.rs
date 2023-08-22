@@ -17,7 +17,6 @@ pub struct AuthData{
     pub expiration: Option<DateTime<Utc>>,
 }
 
-
 #[derive(Clone,PartialEq)]
 pub struct Character<> {
     pub id: u64,
@@ -26,7 +25,7 @@ pub struct Character<> {
     pub auth: Option<AuthData>,
     pub corp: Option<Corporation>,
     pub alliance: Option<Alliance>,
-    pub photo: Option<Vec<u8>>,
+    pub photo: Option<String>,
     pub location: u64,
 }
 

@@ -3,22 +3,30 @@ use rusqlite::{Connection,OpenFlags,ToSql};
 use crate::objects::{Character,Corporation,Alliance, BasicCatalog};
 use crate::esi::Error;
 use std::path::Path;
+#[cfg(feature = "crypted-db")]
 use uuid::Uuid;
 
 pub(crate) struct PlayerDatabase {
-
 }
 
 impl PlayerDatabase{
 
-    pub(crate) fn create_database(path: &Path,uuid: Uuid) -> Result<bool,Error> {
-        let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
-        let mut query = ["PRAGMA key = '",uuid.to_string().as_str(),"'"].concat();
-        let mut statement = conn.prepare(&query)?;
+    #[cfg(feature = "crypted-db")]
+    pub(crate)fn crypted_database_open( conn: &Connection) -> Result<(),Error> {
+        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
+        let query = ["PRAGMA key = '",uuid.to_string().as_str(),"'"].concat();
+        let mut statement = conn.prepare(query.as_str())?;
         let _ = statement.query([])?;
+        Ok(())
+    }
+
+    pub(crate) fn create_database(path: &Path) -> Result<bool,Error> {
+        let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
+        #[cfg(feature = "crypted-db")]
+        PlayerDatabase::crypted_database_open(&conn)?;
         
         //Character Public Data
-        query = String::from("CREATE TABLE char (id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
+        let mut query = String::from("CREATE TABLE char (id INTEGER PRIMARY KEY, name VARCHAR(255) NOT NULL,");
         query += " corporation INTEGER REFERENCES corp(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " alliance INTEGER REFERENCES alliance(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " portrait BLOB, lastLogon DATETIME NOT NULL, location INTEGER NOT NULL)";
@@ -54,7 +62,7 @@ impl PlayerDatabase{
 
     pub(crate) fn select_characters(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Character>,Error> {
         let mut result = Vec::new();
-        let mut query = String::from("SELECT id, name, corp, alliance, portrait, lastLogon, location FROM char");
+        let mut query = String::from("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char");
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
             query = format!("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char WHERE id IN ({})", vars);
@@ -63,27 +71,24 @@ impl PlayerDatabase{
         let mut rows = statement.query(rusqlite::params_from_iter(ids))?;
         while let Some(row) = rows.next()? {
             let dt = DateTime::parse_from_rfc3339(row.get::<usize,String>(5)?.as_str());
-            let utc_dt = DateTime::from_utc(dt.unwrap().naive_utc(),Utc);
             let mut char = Character::new();
             char.id             = row.get(0)?;
             char.name           = row.get(1)?;
+            char.photo          = row.get(4)?;
             char.corp = if let Ok(value) = row.get::<usize,u64>(2){
-                Some(Corporation{
-                    id: value,
-                    name: String::new(),
-                })
+                Some(PlayerDatabase::select_corporation(conn, vec![value])?[0].clone())
             } else {
                 None
             };
             char.alliance = if let Ok(value) = row.get::<usize,u64>(3){
-                Some(Alliance{
-                    id: value,
-                    name: String::new(),
-                })
+                Some(PlayerDatabase::select_alliance(conn, vec![value])?[0].clone())
             } else {
                 None
             };
-            char.last_logon     = utc_dt;
+            if let Ok(time) = dt {
+                let utc_dt = DateTime::from_utc(time.naive_utc(),Utc);
+                char.last_logon     = utc_dt;
+            }
             char.location       = row.get::<usize,u64>(6)?;
             result.push(char);
         }
@@ -110,23 +115,17 @@ impl PlayerDatabase{
         query += "name,corporation,alliance,portrait,lastLogon,location) VALUES (?,?,?,?,?,?,?)";
         let mut statement = conn.prepare(query.as_str())?;
         let dt = player.last_logon.to_rfc3339();
-        let corp = match &player.corp {
-            None => 0,
-            Some(t_corp) => t_corp.id,
-        };
-        let alliance = match &player.alliance {
-            None => 0,
-            Some(t_alliance) => t_alliance.id,
-        };
         statement.raw_bind_parameter(1, player.id)?;
         statement.raw_bind_parameter(2, &player.name)?;
-        if corp != 0 {
-            statement.raw_bind_parameter(3, corp)?;
+        if player.corp .is_some() {
+            statement.raw_bind_parameter(3, player.corp.as_ref().unwrap().id)?;
         }
-        if alliance != 0 {
-            statement.raw_bind_parameter(4, alliance)?;
-        } 
-        statement.raw_bind_parameter(5, "0")?;
+        if player.alliance.is_some() {
+            statement.raw_bind_parameter(4, player.alliance.as_ref().unwrap().id)?;
+        }
+        if player.photo.is_some(){
+            statement.raw_bind_parameter(5, player.photo.clone().unwrap())?;
+        }
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
         let rows = statement.raw_execute()?;
@@ -166,7 +165,7 @@ impl PlayerDatabase{
     // Corporation
     pub(crate) fn select_corporation(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Corporation>,Error> {
         let mut result = Vec::new();
-        let mut query = String::from("SELECT id,name FROM corporation");
+        let mut query = String::from("SELECT id,name FROM corp");
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
             query = format!("SELECT id,name FROM corp WHERE id IN ({})", vars);
