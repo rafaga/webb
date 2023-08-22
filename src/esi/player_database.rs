@@ -115,23 +115,17 @@ impl PlayerDatabase{
         query += "name,corporation,alliance,portrait,lastLogon,location) VALUES (?,?,?,?,?,?,?)";
         let mut statement = conn.prepare(query.as_str())?;
         let dt = player.last_logon.to_rfc3339();
-        let corp = match &player.corp {
-            None => 0,
-            Some(t_corp) => t_corp.id,
-        };
-        let alliance = match &player.alliance {
-            None => 0,
-            Some(t_alliance) => t_alliance.id,
-        };
         statement.raw_bind_parameter(1, player.id)?;
         statement.raw_bind_parameter(2, &player.name)?;
-        if corp != 0 {
-            statement.raw_bind_parameter(3, corp)?;
+        if player.corp .is_some() {
+            statement.raw_bind_parameter(3, player.corp.as_ref().unwrap().id)?;
         }
-        if alliance != 0 {
-            statement.raw_bind_parameter(4, alliance)?;
-        } 
-        statement.raw_bind_parameter(5, player.photo.clone().unwrap())?;
+        if player.alliance.is_some() {
+            statement.raw_bind_parameter(4, player.alliance.as_ref().unwrap().id)?;
+        }
+        if player.photo.is_some(){
+            statement.raw_bind_parameter(5, player.photo.clone().unwrap())?;
+        }
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
         let rows = statement.raw_execute()?;

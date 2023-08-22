@@ -131,17 +131,19 @@ mod esi_manager{
         let path_str = "tests/databases/test5.db";
         let path = Path::new(path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _a = fs::remove_file(path_str);
         }
         let mut mon = webb::esi::EsiManager::new(*USER_AGENT, &CLIENT_ID,*SECRET_KEY,*CALLBACK, scope, Some(path_str)); 
         let mut chars = Vec::new();
         let mut zchar = Character::new();
         zchar.id = 23101429;
         zchar.name = "test1".to_string();
+        zchar.photo = Some("https://wiki.winterco.org/_media/zh/logo.png".to_string());
         chars.push(zchar);
         let mut zchar = Character::new();
         zchar.id = 12341245;
         zchar.name = "test2".to_string();
+        zchar.photo = Some("https://wiki.winterco.org/_media/zh/logo.png".to_string());
         chars.push(zchar);
 
         while let Some(char_x) = chars.pop(){
@@ -220,9 +222,9 @@ mod esi_manager{
     }
 
     // required scope: publicData, esi-location.read_location.v1
-    #[test]
+    #[tokio::test]
     #[cfg_attr(not(feature = "esi-api-test"), ignore)]
-    fn esi_get_public_data() {
+    async fn esi_get_public_data() {
         let scope = vec!["publicData"]; //,"esi-location.read_location.v1"
         let path_str = Some("tests/databases/esi0.db");
         let path = Path::new(path_str.unwrap());
@@ -236,8 +238,9 @@ mod esi_manager{
         
         match open::that(&url){
             Ok(()) => {
-                //let res = esimon.launch_auth_server(4500).await;
-                /*match esimon.auth_user(res) {
+                let mut vec = vec![];
+                let res = webb::esi::EsiManager::launch_auth_server(4500).unwrap();
+                match esimon.auth_user(res).await {
                     Ok(Some(player)) => {
                         vec.push(player);
                         //println!("{}",vec[0].photo.as_ref().unwrap());
@@ -250,10 +253,18 @@ mod esi_manager{
                     Err(esi_error) => {
                         panic!("Error: {}", esi_error);
                     }
-                }*/
+                }
             },
             Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
         }
+    }
+
+    #[test]
+    fn get_player_photo() {
+        let url = "https://images.evetech.net/characters/95103254/portrait?tenant=tranquility&size=64";
+        if let Ok(photo) = webb::esi::EsiManager::get_player_photo(url){
+            assert_ne!(photo.unwrap().len(),0);
+        } 
     }
 
     #[test]
