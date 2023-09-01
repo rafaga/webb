@@ -288,7 +288,7 @@ impl<'a> EsiManager<'a> {
                 player.alliance = Some(ally);
             }
             let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-            player.photo = Some(player_portraits.px64x64.unwrap()); 
+            player.photo = Some(player_portraits.px128x128.unwrap()); 
             /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
                     player.photo = Some(photo_vec);
             }*/
