@@ -253,47 +253,51 @@ impl<'a> EsiManager<'a> {
     }
 
     pub async fn auth_user(&mut self,reply: (String,String)) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
-        let claims = self.esi.authenticate(reply.0.as_str()).await.unwrap().unwrap();
-        let mut player = Character::new();  
-        //let data = claims.unwrap();
-        //character name
-        player.name = claims.name;
-        //character id
-        let split:Vec<&str> = claims.sub.split(':').collect();
-        player.id = split[2].parse::<u64>().unwrap();
-        if player.auth.is_some() {
-            // owner
-            player.auth.as_mut().unwrap().owner = claims.owner;
-            //jti
-            player.auth.as_mut().unwrap().jti= claims.jti;
-            //expiration Date
-            let expiration: DateTime<Utc> = DateTime::parse_from_str(&claims.exp.to_string(),"%s").unwrap().into();
-            player.auth.as_mut().unwrap().expiration = Some(expiration);
-            self.esi.update_spec().await?;
-            
-            let public_info = self.esi.group_character().get_public_info(player.id).await?;
-            let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
-            let corp = Corporation{
-                id: public_info.corporation_id,
-                name: corp_info.name,
-            };
-            player.corp = Some(corp);
-            if let Some(ally_id) = public_info.alliance_id{
-                let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
-                let ally = Alliance {
-                    id: ally_id,
-                    name: ally_info.name,
+        let claims_option = self.esi.authenticate(reply.0.as_str()).await?;
+        if let Some(claims) = claims_option {
+            let mut player = Character::new();  
+            //let data = claims.unwrap();
+            //character name
+            player.name = claims.name;
+            //character id
+            let split:Vec<&str> = claims.sub.split(':').collect();
+            player.id = split[2].parse::<u64>().unwrap();
+            if player.auth.is_some() {
+                // owner
+                player.auth.as_mut().unwrap().owner = claims.owner;
+                //jti
+                player.auth.as_mut().unwrap().jti= claims.jti;
+                //expiration Date
+                let expiration: DateTime<Utc> = DateTime::parse_from_str(&claims.exp.to_string(),"%s").unwrap().into();
+                player.auth.as_mut().unwrap().expiration = Some(expiration);
+                self.esi.update_spec().await?;
+                
+                let public_info = self.esi.group_character().get_public_info(player.id).await?;
+                let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
+                let corp = Corporation{
+                    id: public_info.corporation_id,
+                    name: corp_info.name,
                 };
-                player.alliance = Some(ally);
+                player.corp = Some(corp);
+                if let Some(ally_id) = public_info.alliance_id{
+                    let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
+                    let ally = Alliance {
+                        id: ally_id,
+                        name: ally_info.name,
+                    };
+                    player.alliance = Some(ally);
+                }
+                let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
+                player.photo = Some(player_portraits.px128x128.unwrap()); 
+                /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
+                        player.photo = Some(photo_vec);
+                }*/
             }
-            let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-            player.photo = Some(player_portraits.px128x128.unwrap()); 
-            /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
-                    player.photo = Some(photo_vec);
-            }*/
+            self.write_character(&player)?;
+            Ok(Some(player))
+        } else {
+            Ok(None)
         }
-        self.write_character(&player)?;
-        Ok(Some(player))
     }
    
 }
