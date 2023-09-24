@@ -6,8 +6,7 @@ use std::net::SocketAddr;
 use hyper::{Server,Client};
 use crate::auth_service::MakeSvc;
 use crate::objects::{Character,Corporation,Alliance};
-use chrono::{DateTime,NaiveDateTime};
-use chrono::Utc;
+use chrono::{DateTime,Utc};
 use std::path::Path;
 use rusqlite::*;
 use hyper_tls::HttpsConnector;
@@ -268,8 +267,8 @@ impl<'a> EsiManager<'a> {
             //jti
             player.auth.as_mut().unwrap().jti= claims.jti;
             //expiration Date
-            let naive_datetime = NaiveDateTime::from_timestamp_opt(claims.exp, 0);
-            player.auth.as_mut().unwrap().expiration = Some(DateTime::from_utc(naive_datetime.unwrap(), Utc));
+            let expiration: DateTime<Utc> = DateTime::parse_from_str(&claims.exp.to_string(),"%s").unwrap().into();
+            player.auth.as_mut().unwrap().expiration = Some(expiration);
             self.esi.update_spec().await?;
             
             let public_info = self.esi.group_character().get_public_info(player.id).await?;

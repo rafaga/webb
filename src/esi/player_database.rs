@@ -70,7 +70,8 @@ impl PlayerDatabase{
         let mut statement = conn.prepare(&query)?;
         let mut rows = statement.query(rusqlite::params_from_iter(ids))?;
         while let Some(row) = rows.next()? {
-            let dt = DateTime::parse_from_rfc3339(row.get::<usize,String>(5)?.as_str());
+
+            let dt = row.get::<usize,String>(5)?.parse::<DateTime<Utc>>();
             let mut char = Character::new();
             char.id             = row.get(0)?;
             char.name           = row.get(1)?;
@@ -86,8 +87,7 @@ impl PlayerDatabase{
                 None
             };
             if let Ok(time) = dt {
-                let utc_dt = DateTime::from_utc(time.naive_utc(),Utc);
-                char.last_logon     = utc_dt;
+                char.last_logon     = time;
             }
             char.location       = row.get::<usize,u64>(6)?;
             result.push(char);
