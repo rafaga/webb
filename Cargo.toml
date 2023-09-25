@@ -16,7 +16,7 @@ hyper = { version = "0.14", features = ["server", "runtime", "client", "http1"] 
 hyper-tls = "0.5"
 lazy_static = "1"
 open = "4"
-rfesi = {version = "0.19.0", default-features = false, features = [] }
+rfesi = {git = "http://github.com/rafaga/rfesi.git", branch = "test", default-features = false, features = ["random_state"]}
 rusqlite = { version = "0.28", features = ["bundled-sqlcipher", "backup", "blob", "sqlcipher"] }
 serde = { version = "1", features = ["serde_derive"] }
 tokio = { version = "1", features = ["tokio-macros", "rt", "rt-multi-thread", "macros"] }
