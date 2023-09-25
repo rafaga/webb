@@ -239,7 +239,10 @@ mod esi_manager{
         match open::that(&url){
             Ok(()) => {
                 let mut vec = vec![];
-                let res = webb::esi::EsiManager::launch_auth_server(4500).unwrap();
+                let res = match webb::esi::EsiManager::priv_launch_auth_server(4500).await {
+                    Ok(a) => a,
+                    Err(t_error) => panic!("An error occurred: {}", t_error),
+                };
                 match esimon.auth_user(res).await {
                     Ok(Some(player)) => {
                         vec.push(player);

@@ -236,6 +236,10 @@ impl<'a> EsiManager<'a> {
 
     #[tokio::main]
     pub async fn launch_auth_server(port: u16) -> Result<(String,String),Error> {
+        crate::esi::EsiManager::priv_launch_auth_server(port).await
+    }
+
+    pub async fn priv_launch_auth_server(port: u16) -> Result<(String,String),Error> {
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
