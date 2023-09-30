@@ -86,7 +86,7 @@ impl PlayerDatabase{
                 None
             };
             if let Ok(time) = dt {
-                let utc_dt = DateTime::from_utc(time.naive_utc(),Utc);
+                let utc_dt = DateTime::from_naive_utc_and_offset(time.naive_utc(),Utc);
                 char.last_logon     = utc_dt;
             }
             char.location       = row.get::<usize,u64>(6)?;
