@@ -28,6 +28,8 @@ impl<'a> EsiManager<'a> {
 
     // Alliance
     pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_write_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         
         #[cfg(feature = "crypted-db")]
@@ -43,6 +45,8 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn read_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<Vec<Alliance>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_read_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -56,6 +60,8 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn remove_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_remove_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -70,6 +76,8 @@ impl<'a> EsiManager<'a> {
 
     // Corporation
     pub fn write_corporation(&mut self, corp:&Corporation) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_write_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -84,6 +92,8 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn read_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<Vec<Corporation>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_read_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -97,6 +107,8 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn remove_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_remove_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -111,6 +123,9 @@ impl<'a> EsiManager<'a> {
 
     //Characters
     pub fn write_character(&mut self, char:&Character) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_write_character");
+
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -134,6 +149,9 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn read_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<Vec<Character>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_read_characters");
+
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -148,6 +166,8 @@ impl<'a> EsiManager<'a> {
     }
 
     pub fn remove_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_remove_character");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -203,6 +223,9 @@ impl<'a> EsiManager<'a> {
     }
 
     pub async fn get_location(&self, player_id: u64) -> Result<u64,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_get_location");
+
         if let Ok(location) = self.esi.group_location().get_location(player_id).await {
             let player_location = location.solar_system_id;
             Ok(player_location)
@@ -213,6 +236,9 @@ impl<'a> EsiManager<'a> {
 
     #[tokio::main]
     pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,String> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_get_player_photo");
+
         let https = HttpsConnector::new();
         let client = Client::builder()
             .build::<_, hyper::Body>(https);
@@ -240,6 +266,9 @@ impl<'a> EsiManager<'a> {
     }
 
     pub async fn priv_launch_auth_server(port: u16) -> Result<(String,String),Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_priv_launch_auth_server");
+
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
         let (tx, rx) = channel::<(String,String)>();
         crate::SHARED_TX.lock().await.replace(tx);
@@ -257,6 +286,9 @@ impl<'a> EsiManager<'a> {
     }
 
     pub async fn auth_user(&mut self,reply: (String,String)) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("esi_auth_user");
+        
         let claims_option = self.esi.authenticate(reply.0.as_str()).await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();  

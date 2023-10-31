@@ -21,6 +21,9 @@ impl PlayerDatabase{
     }
 
     pub(crate) fn create_database(path: &Path) -> Result<bool,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("create_database");
+
         let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -61,6 +64,9 @@ impl PlayerDatabase{
     }
 
     pub(crate) fn select_characters(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Character>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("select_characters");
+
         let mut result = Vec::new();
         let mut query = String::from("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char");
         if !ids.is_empty() {
@@ -98,6 +104,8 @@ impl PlayerDatabase{
     
     // Updated
     pub(crate) fn update_character(conn: &Connection, character: &Character) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("update_characters");
         let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
         query += "lastlogon = ?, location = ? WHERE id = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
@@ -112,6 +120,9 @@ impl PlayerDatabase{
     }
     
     pub(crate) fn insert_character(conn: &Connection, player: &Character) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("insert_character");
+
         let mut query = String::from("INSERT INTO char (id,");
         query += "name,corporation,alliance,portrait,lastLogon,location) VALUES (?,?,?,?,?,?,?)";
         let mut statement = conn.prepare(query.as_str())?;
@@ -165,6 +176,9 @@ impl PlayerDatabase{
 
     // Corporation
     pub(crate) fn select_corporation(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Corporation>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("select_corporation");
+
         let mut result = Vec::new();
         let mut query = String::from("SELECT id,name FROM corp");
         if !ids.is_empty() {
@@ -197,6 +211,9 @@ impl PlayerDatabase{
 
     // Alliance
     pub(crate) fn select_alliance(conn: &Connection, ids: Vec<u64>) -> Result<Vec<Alliance>,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("select_alliance");
+
         let mut result = Vec::new();
         let mut query = String::from("SELECT id,name FROM alliance");
         if !ids.is_empty() {
@@ -228,6 +245,9 @@ impl PlayerDatabase{
 
     // function to delete values
     fn delete_general(conn: &Connection, table: &str, ids: Vec<u64>) -> Result<usize,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("delete_general");
+        
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
             let query = format!("DELETE FROM {} WHERE id IN ({})", table, vars);
@@ -244,6 +264,9 @@ impl PlayerDatabase{
 
     // generic Function to insert new values on a catalog
     fn insert_catalog<B: BasicCatalog>(conn: &Connection, table: &str, obj: &B) -> Result<usize,Error> where <B as BasicCatalog>::Output: ToSql {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("insert_catalog");
+
         let query = format!("INSERT INTO {} (id,name) VALUES (?,?);", table);
         let mut statement = conn.prepare(&query)?;
         let params = rusqlite::params![obj.id(),obj.name()];
@@ -253,6 +276,9 @@ impl PlayerDatabase{
 
     // generic Function to update values on a catalog
     fn update_catalog<B: BasicCatalog>(conn: &Connection, table: &str, obj: &B) -> Result<usize,Error> where <B as BasicCatalog>::Output: ToSql {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("update_catalog");
+
         let query = format!("UPDATE {} SET name = ? WHERE id = ?;", table);
         let mut statement = conn.prepare(&query)?;
         let params = rusqlite::params![obj.name(),obj.id()];
