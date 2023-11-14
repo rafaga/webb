@@ -1,24 +1,24 @@
 use chrono::prelude::*;
 use rusqlite::Error;
 
-pub trait EsiObject{
-    fn retrieve() -> Result<bool,Error>;
+pub trait EsiObject {
+    fn retrieve() -> Result<bool, Error>;
 }
 
-pub enum TelescopeDbError{
+pub enum TelescopeDbError {
     NoConnection,
 }
 
-#[derive(Clone,PartialEq)]
-pub struct AuthData{
+#[derive(Clone, PartialEq)]
+pub struct AuthData {
     pub owner: String,
     pub jti: String,
-    pub token:String,
+    pub token: String,
     pub expiration: Option<DateTime<Utc>>,
 }
 
-#[derive(Clone,PartialEq)]
-pub struct Character<> {
+#[derive(Clone, PartialEq)]
+pub struct Character {
     pub id: u64,
     pub name: String,
     pub last_logon: DateTime<Utc>,
@@ -29,7 +29,7 @@ pub struct Character<> {
     pub location: u64,
 }
 
-impl Character{
+impl Character {
     pub fn new() -> Self {
         let auth = AuthData {
             owner: String::new(),
@@ -38,38 +38,41 @@ impl Character{
             expiration: None,
         };
 
-        Character { 
-            id: 0, 
+        Character {
+            id: 0,
             name: String::new(),
-            last_logon: DateTime::default(), 
+            last_logon: DateTime::default(),
             auth: Some(auth),
             corp: None,
             alliance: None,
             photo: None,
-            location: 0
+            location: 0,
         }
     }
 }
 
-impl Default for Character{
+impl Default for Character {
     fn default() -> Self {
         Self::new()
     }
 }
 
-#[derive(Clone,PartialEq,Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Corporation {
     pub id: u64,
     pub name: String,
 }
 
-impl Corporation{
+impl Corporation {
     pub fn new() -> Self {
-        Corporation { id: 0, name: String::new() }
+        Corporation {
+            id: 0,
+            name: String::new(),
+        }
     }
 }
 
-impl Default for Corporation{
+impl Default for Corporation {
     fn default() -> Self {
         Self::new()
     }
@@ -87,20 +90,22 @@ impl BasicCatalog for Corporation {
     }
 }
 
-
-#[derive(Clone,PartialEq,Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Alliance {
     pub id: u64,
     pub name: String,
 }
 
-impl Alliance{
+impl Alliance {
     pub fn new() -> Self {
-        Alliance { id: 0, name: String::new() }
+        Alliance {
+            id: 0,
+            name: String::new(),
+        }
     }
 }
 
-impl Default for Alliance{
+impl Default for Alliance {
     fn default() -> Self {
         Self::new()
     }
@@ -118,11 +123,9 @@ impl BasicCatalog for Alliance {
     }
 }
 
-
-pub trait BasicCatalog{
+pub trait BasicCatalog {
     type Output;
 
     fn id(&self) -> Self::Output;
     fn name(&self) -> &str;
 }
-

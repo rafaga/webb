@@ -1,23 +1,22 @@
-use hyper::body::HttpBody;
-use rfesi::prelude::*;
-use tokio::time::{Instant, timeout_at};
-use tokio::time::Duration;
-use std::net::SocketAddr;
-use hyper::{Server,Client};
 use crate::auth_service::MakeSvc;
-use crate::objects::{Character,Corporation,Alliance};
-use chrono::{DateTime,Utc};
-use std::path::Path;
-use rusqlite::*;
+use crate::objects::{Alliance, Character, Corporation};
+use chrono::{DateTime, Utc};
+use hyper::body::HttpBody;
+use hyper::{Client, Server};
 use hyper_tls::HttpsConnector;
+use rfesi::prelude::*;
+use rusqlite::*;
+use std::net::SocketAddr;
+use std::path::Path;
 use tokio::sync::oneshot::channel;
-
+use tokio::time::Duration;
+use tokio::time::{timeout_at, Instant};
 
 use self::player_database::PlayerDatabase;
 pub mod player_database;
 
 #[derive(Clone)]
-pub struct EsiManager<'a>{
+pub struct EsiManager<'a> {
     pub esi: Esi,
     pub characters: Vec<Character>,
     pub path: &'a Path,
@@ -25,16 +24,15 @@ pub struct EsiManager<'a>{
 }
 
 impl<'a> EsiManager<'a> {
-
     // Alliance
-    pub fn write_alliance(&mut self, alliance:&Alliance) -> Result<usize,Error> {
+    pub fn write_alliance(&mut self, alliance: &Alliance) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
-        
+
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
         let rows = if !players.is_empty() {
             PlayerDatabase::update_alliance(&conn, alliance)?
@@ -44,22 +42,25 @@ impl<'a> EsiManager<'a> {
         Ok(rows)
     }
 
-    pub fn read_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<Vec<Alliance>,Error> {
+    pub fn read_alliance(
+        &mut self,
+        alliance_vec: Option<Vec<u64>>,
+    ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         let result = if let Some(id_ally) = alliance_vec {
-            PlayerDatabase::select_alliance(&conn,id_ally)?
+            PlayerDatabase::select_alliance(&conn, id_ally)?
         } else {
-            PlayerDatabase::select_alliance(&conn,vec![])?
+            PlayerDatabase::select_alliance(&conn, vec![])?
         };
         Ok(result)
     }
 
-    pub fn remove_alliance(&mut self, alliance_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+    pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<u64>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
@@ -67,21 +68,21 @@ impl<'a> EsiManager<'a> {
         PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = alliance_vec {
-            PlayerDatabase::delete_alliance(&conn,id_ally)?
+            PlayerDatabase::delete_alliance(&conn, id_ally)?
         } else {
-            PlayerDatabase::delete_alliance(&conn,vec![])?
+            PlayerDatabase::delete_alliance(&conn, vec![])?
         };
         Ok(result)
     }
 
     // Corporation
-    pub fn write_corporation(&mut self, corp:&Corporation) -> Result<usize,Error> {
+    pub fn write_corporation(&mut self, corp: &Corporation) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
             PlayerDatabase::update_corporation(&conn, corp)?
@@ -91,22 +92,28 @@ impl<'a> EsiManager<'a> {
         Ok(rows)
     }
 
-    pub fn read_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<Vec<Corporation>,Error> {
+    pub fn read_corporation(
+        &mut self,
+        corporation_vec: Option<Vec<u64>>,
+    ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         let result = if let Some(id_corp) = corporation_vec {
-            PlayerDatabase::select_corporation(&conn,id_corp)?
+            PlayerDatabase::select_corporation(&conn, id_corp)?
         } else {
-            PlayerDatabase::select_corporation(&conn,vec![])?
+            PlayerDatabase::select_corporation(&conn, vec![])?
         };
         Ok(result)
     }
 
-    pub fn remove_corporation(&mut self, corporation_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+    pub fn remove_corporation(
+        &mut self,
+        corporation_vec: Option<Vec<u64>>,
+    ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_corporation");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
@@ -114,22 +121,22 @@ impl<'a> EsiManager<'a> {
         PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_ally) = corporation_vec {
-            PlayerDatabase::delete_corporation(&conn,id_ally)?
+            PlayerDatabase::delete_corporation(&conn, id_ally)?
         } else {
-            PlayerDatabase::delete_corporation(&conn,vec![])?
+            PlayerDatabase::delete_corporation(&conn, vec![])?
         };
         Ok(result)
     }
 
     //Characters
-    pub fn write_character(&mut self, char:&Character) -> Result<usize,Error> {
+    pub fn write_character(&mut self, char: &Character) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_character");
 
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         // first we need to assure that Corporation and alliance existys on database
         if let Some(corp) = &char.corp {
             let _ = self.write_corporation(corp)?;
@@ -148,24 +155,24 @@ impl<'a> EsiManager<'a> {
         Ok(rows)
     }
 
-    pub fn read_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<Vec<Character>,Error> {
+    pub fn read_characters(&mut self, char_vec: Option<Vec<u64>>) -> Result<Vec<Character>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_characters");
 
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
-    
+
         let result;
         if let Some(id_chars) = char_vec {
-            result = PlayerDatabase::select_characters(&conn,id_chars)?;
+            result = PlayerDatabase::select_characters(&conn, id_chars)?;
         } else {
-            result = PlayerDatabase::select_characters(&conn,vec![])?;
+            result = PlayerDatabase::select_characters(&conn, vec![])?;
         };
         Ok(result)
     }
 
-    pub fn remove_characters(&mut self, char_vec:Option<Vec<u64>>) -> Result<usize,Error> {
+    pub fn remove_characters(&mut self, char_vec: Option<Vec<u64>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_character");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
@@ -173,21 +180,29 @@ impl<'a> EsiManager<'a> {
         PlayerDatabase::crypted_database_open(&conn)?;
 
         let result = if let Some(id_chars) = char_vec {
-            PlayerDatabase::delete_characters(&conn,id_chars)?
+            PlayerDatabase::delete_characters(&conn, id_chars)?
         } else {
-            PlayerDatabase::delete_characters(&conn,vec![])?
+            PlayerDatabase::delete_characters(&conn, vec![])?
         };
         Ok(result)
     }
 
-    pub fn new(useragent: &str, client_id: &str, client_secret: &str, callback_url: &str, scope: Vec<&str>, database_path: Option<&'a str>) -> Self {
+    pub fn new(
+        useragent: &str,
+        client_id: &str,
+        client_secret: &str,
+        callback_url: &str,
+        scope: Vec<&str>,
+        database_path: Option<&'a str>,
+    ) -> Self {
         let esi = EsiBuilder::new()
             .user_agent(useragent)
             .client_id(client_id)
             .client_secret(client_secret)
             .callback_url(callback_url)
             .scope(scope.join(" ").as_str())
-            .build().unwrap();
+            .build()
+            .unwrap();
         let path;
 
         if let Some(pathz) = database_path {
@@ -212,8 +227,8 @@ impl<'a> EsiManager<'a> {
         } else {
             // cargar jugadores existentes
             let res_conn = Connection::open_with_flags(obj.path, PlayerDatabase::open_flags());
-            if let Ok(conn) = res_conn{
-                if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]){
+            if let Ok(conn) = res_conn {
+                if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]) {
                     obj.characters = chars;
                 }
             }
@@ -222,7 +237,7 @@ impl<'a> EsiManager<'a> {
         obj
     }
 
-    pub async fn get_location(&self, player_id: u64) -> Result<u64,Error> {
+    pub async fn get_location(&self, player_id: u64) -> Result<u64, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
 
@@ -235,15 +250,14 @@ impl<'a> EsiManager<'a> {
     }
 
     #[tokio::main]
-    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>,String> {
+    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>, String> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_player_photo");
 
         let https = HttpsConnector::new();
-        let client = Client::builder()
-            .build::<_, hyper::Body>(https);
+        let client = Client::builder().build::<_, hyper::Body>(https);
         let uri;
-        match url.parse::<hyper::Uri>(){
+        match url.parse::<hyper::Uri>() {
             Ok(parsed_uri) => uri = parsed_uri,
             Err(t_error) => return Err(t_error.to_string() + " > " + url),
         };
@@ -261,18 +275,18 @@ impl<'a> EsiManager<'a> {
     }
 
     #[tokio::main]
-    pub async fn launch_auth_server(port: u16) -> Result<(String,String),Error> {
+    pub async fn launch_auth_server(port: u16) -> Result<(String, String), Error> {
         crate::esi::EsiManager::priv_launch_auth_server(port).await
     }
 
-    pub async fn priv_launch_auth_server(port: u16) -> Result<(String,String),Error> {
+    pub async fn priv_launch_auth_server(port: u16) -> Result<(String, String), Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_priv_launch_auth_server");
 
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let (tx, rx) = channel::<(String,String)>();
+        let (tx, rx) = channel::<(String, String)>();
         crate::SHARED_TX.lock().await.replace(tx);
-        let mut result = (String::new(),String::new());
+        let mut result = (String::new(), String::new());
         let server = Server::bind(&addr)
             .serve(MakeSvc::new())
             .with_graceful_shutdown(async {
@@ -285,37 +299,51 @@ impl<'a> EsiManager<'a> {
         Ok(result)
     }
 
-    pub async fn auth_user(&mut self,reply: (String,String)) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn auth_user(
+        &mut self,
+        reply: (String, String),
+    ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
-        
+
         let claims_option = self.esi.authenticate(reply.0.as_str()).await?;
         if let Some(claims) = claims_option {
-            let mut player = Character::new();  
+            let mut player = Character::new();
             //let data = claims.unwrap();
             //character name
             player.name = claims.name;
             //character id
-            let split:Vec<&str> = claims.sub.split(':').collect();
+            let split: Vec<&str> = claims.sub.split(':').collect();
             player.id = split[2].parse::<u64>().unwrap();
             if player.auth.is_some() {
                 // owner
                 player.auth.as_mut().unwrap().owner = claims.owner;
                 //jti
-                player.auth.as_mut().unwrap().jti= claims.jti;
+                player.auth.as_mut().unwrap().jti = claims.jti;
                 //expiration Date
-                let expiration: DateTime<Utc> = DateTime::parse_from_str(&claims.exp.to_string(),"%s").unwrap().into();
+                let expiration: DateTime<Utc> =
+                    DateTime::parse_from_str(&claims.exp.to_string(), "%s")
+                        .unwrap()
+                        .into();
                 player.auth.as_mut().unwrap().expiration = Some(expiration);
                 self.esi.update_spec().await?;
-                
-                let public_info = self.esi.group_character().get_public_info(player.id).await?;
-                let corp_info = self.esi.group_corporation().get_public_info(public_info.corporation_id).await?;
-                let corp = Corporation{
+
+                let public_info = self
+                    .esi
+                    .group_character()
+                    .get_public_info(player.id)
+                    .await?;
+                let corp_info = self
+                    .esi
+                    .group_corporation()
+                    .get_public_info(public_info.corporation_id)
+                    .await?;
+                let corp = Corporation {
                     id: public_info.corporation_id,
                     name: corp_info.name,
                 };
                 player.corp = Some(corp);
-                if let Some(ally_id) = public_info.alliance_id{
+                if let Some(ally_id) = public_info.alliance_id {
                     let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
                     let ally = Alliance {
                         id: ally_id,
@@ -324,7 +352,7 @@ impl<'a> EsiManager<'a> {
                     player.alliance = Some(ally);
                 }
                 let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-                player.photo = Some(player_portraits.px128x128.unwrap()); 
+                player.photo = Some(player_portraits.px128x128.unwrap());
                 /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
                         player.photo = Some(photo_vec);
                 }*/
@@ -335,5 +363,4 @@ impl<'a> EsiManager<'a> {
             Ok(None)
         }
     }
-   
 }
