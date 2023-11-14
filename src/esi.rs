@@ -306,7 +306,9 @@ impl<'a> EsiManager<'a> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
-        let claims_option = self.esi.authenticate(reply.0.as_str()).await?;
+        // TODO: review this change
+        let verifier = PkceVerifier::new();
+        let claims_option = self.esi.authenticate(reply.0.as_str(),Some(verifier)).await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();
             //let data = claims.unwrap();
