@@ -280,16 +280,16 @@ mod esi_manager {
             scope,
             path_str,
         );
-        let (url, _rand) = esimon.esi.get_authorize_url().unwrap();
-
-        match open::that(&url) {
+        let auth_info = esimon.esi.get_authorize_url().unwrap();
+        
+        match open::that(&auth_info.authorization_url) {
             Ok(()) => {
                 let mut vec = vec![];
                 let res = match webb::esi::EsiManager::priv_launch_auth_server(4500).await {
                     Ok(a) => a,
                     Err(t_error) => panic!("An error occurred: {}", t_error),
                 };
-                match esimon.auth_user(res).await {
+                match esimon.auth_user(res,auth_info).await {
                     Ok(Some(player)) => {
                         vec.push(player);
                         //println!("{}",vec[0].photo.as_ref().unwrap());
@@ -304,7 +304,7 @@ mod esi_manager {
                     }
                 }
             }
-            Err(err) => panic!("An error occurred when opening '{}': {}", url, err),
+            Err(err) => panic!("An error occurred when opening '{}': {}", &auth_info.authorization_url, err),
         }
     }
 

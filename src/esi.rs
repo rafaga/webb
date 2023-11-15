@@ -302,13 +302,12 @@ impl<'a> EsiManager<'a> {
     pub async fn auth_user(
         &mut self,
         reply: (String, String),
+        auth_info: AuthenticationInformation
     ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
-        // TODO: review this change
-        let verifier = PkceVerifier::new();
-        let claims_option = self.esi.authenticate(reply.0.as_str(),Some(verifier)).await?;
+        let claims_option = self.esi.authenticate(reply.0.as_str(),auth_info.pkce_verifier).await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();
             //let data = claims.unwrap();
