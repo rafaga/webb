@@ -9,6 +9,7 @@ default = ["crypted-db"]
 esi-api-test = []
 crypted-db = ["dep:uuid"]
 puffin = ["dep:puffin"]
+native-auth-flow = []
 
 [dependencies]
 chrono = "0.4"
