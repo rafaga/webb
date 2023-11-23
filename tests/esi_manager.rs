@@ -289,7 +289,7 @@ mod esi_manager {
                     Ok(a) => a,
                     Err(t_error) => panic!("An error occurred: {}", t_error),
                 };
-                match esimon.auth_user(res,auth_info).await {
+                match esimon.auth_user(auth_info).await {
                     Ok(Some(player)) => {
                         vec.push(player);
                         //println!("{}",vec[0].photo.as_ref().unwrap());

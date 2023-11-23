@@ -275,11 +275,11 @@ impl<'a> EsiManager<'a> {
     }
 
     #[tokio::main]
-    pub async fn launch_auth_server(port: u16) -> Result<(String, String), Error> {
+    pub async fn launch_auth_server(port: u16) -> Result<AuthenticationInformation, Error> {
         crate::esi::EsiManager::priv_launch_auth_server(port).await
     }
 
-    pub async fn priv_launch_auth_server(port: u16) -> Result<(String, String), Error> {
+    pub async fn priv_launch_auth_server(port: u16) -> Result<AuthenticationInformation, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_priv_launch_auth_server");
 
@@ -301,13 +301,12 @@ impl<'a> EsiManager<'a> {
 
     pub async fn auth_user(
         &mut self,
-        reply: (String, String),
         auth_info: AuthenticationInformation
     ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
-        let claims_option = self.esi.authenticate(reply.0.as_str(),auth_info.pkce_verifier).await?;
+        let claims_option = self.esi.authenticate(&auth_info.state,auth_info.pkce_verifier).await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();
             //let data = claims.unwrap();
