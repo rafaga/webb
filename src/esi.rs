@@ -308,13 +308,18 @@ impl<'a> EsiManager<'a> {
 
     pub async fn auth_user(
         &mut self,
-        auth_info: AuthenticationInformation,
+        _auth_info: AuthenticationInformation,
         oauth_data:(String,String)
     ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
-        let claims_option = self.esi.authenticate(oauth_data.0.as_str(), auth_info.pkce_verifier).await?;
+        let verifier = None; 
+
+        #[cfg(feature = "native-auth-flow")]
+        let verifier = _auth_info.pkce_verifier;
+
+        let claims_option = self.esi.authenticate(oauth_data.0.as_str(), verifier).await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();
             //let data = claims.unwrap();
