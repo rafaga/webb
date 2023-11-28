@@ -244,7 +244,7 @@ impl<'a> EsiManager<'a> {
         obj
     }
 
-    pub async fn get_location(&self, player_id: u64) -> Result<u64, Error> {
+    pub async fn get_location(&self, player_id: u64) -> Result<i32, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
 
