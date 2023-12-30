@@ -116,6 +116,8 @@ impl PlayerDatabase {
         let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
         query += "lastlogon = ?, location = ? WHERE id = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
+        // TODO: Corregir
+        //let alliance = 
         let params = rusqlite::params![
             character.name,
             character.alliance.as_ref().unwrap().id,
