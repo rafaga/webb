@@ -65,7 +65,7 @@ impl PlayerDatabase {
 
     pub(crate) fn select_characters(
         conn: &Connection,
-        ids: Vec<u64>,
+        ids: Vec<i32>,
     ) -> Result<Vec<Character>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("select_characters");
@@ -86,12 +86,12 @@ impl PlayerDatabase {
             char.id = row.get(0)?;
             char.name = row.get(1)?;
             char.photo = row.get(4)?;
-            char.corp = if let Ok(value) = row.get::<usize, u64>(2) {
+            char.corp = if let Ok(value) = row.get::<usize, i32>(2) {
                 Some(PlayerDatabase::select_corporation(conn, vec![value])?[0].clone())
             } else {
                 None
             };
-            char.alliance = if let Ok(value) = row.get::<usize, u64>(3) {
+            char.alliance = if let Ok(value) = row.get::<usize, i32>(3) {
                 Some(PlayerDatabase::select_alliance(conn, vec![value])?[0].clone())
             } else {
                 None
@@ -188,7 +188,7 @@ impl PlayerDatabase {
     // Corporation
     pub(crate) fn select_corporation(
         conn: &Connection,
-        ids: Vec<u64>,
+        ids: Vec<i32>,
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("select_corporation");
@@ -203,7 +203,7 @@ impl PlayerDatabase {
         let mut rows = statement.query(rusqlite::params_from_iter(ids))?;
         while let Some(row) = rows.next()? {
             let corp = Corporation {
-                id: row.get::<usize, u64>(0)?,
+                id: row.get::<usize, i32>(0)?,
                 name: row.get::<usize, String>(1)?,
             };
             result.push(corp);
@@ -232,7 +232,7 @@ impl PlayerDatabase {
     // Alliance
     pub(crate) fn select_alliance(
         conn: &Connection,
-        ids: Vec<u64>,
+        ids: Vec<i32>,
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("select_alliance");
@@ -247,7 +247,7 @@ impl PlayerDatabase {
         let mut rows = statement.query(rusqlite::params_from_iter(ids))?;
         while let Some(row) = rows.next()? {
             let ally = Alliance {
-                id: row.get::<usize, u64>(0)?,
+                id: row.get::<usize, i32>(0)?,
                 name: row.get::<usize, String>(1)?,
             };
             result.push(ally);

@@ -20,7 +20,7 @@ pub struct EsiManager<'a> {
     pub esi: Esi,
     pub characters: Vec<Character>,
     pub path: &'a Path,
-    pub active_character: Option<u64>,
+    pub active_character: Option<i32>,
 }
 
 impl<'a> EsiManager<'a> {
@@ -44,7 +44,7 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_alliance(
         &mut self,
-        alliance_vec: Option<Vec<u64>>,
+        alliance_vec: Option<Vec<i32>>,
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_alliance");
@@ -94,7 +94,7 @@ impl<'a> EsiManager<'a> {
 
     pub fn read_corporation(
         &mut self,
-        corporation_vec: Option<Vec<u64>>,
+        corporation_vec: Option<Vec<i32>>,
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_corporation");
@@ -155,7 +155,7 @@ impl<'a> EsiManager<'a> {
         Ok(rows)
     }
 
-    pub fn read_characters(&mut self, char_vec: Option<Vec<u64>>) -> Result<Vec<Character>, Error> {
+    pub fn read_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<Vec<Character>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_characters");
 
@@ -244,7 +244,7 @@ impl<'a> EsiManager<'a> {
         obj
     }
 
-    pub async fn get_location(&self, player_id: u64) -> Result<i32, Error> {
+    pub async fn get_location(&self, player_id: i32) -> Result<i32, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
 
@@ -327,7 +327,7 @@ impl<'a> EsiManager<'a> {
             player.name = claims.name;
             //character id
             let split: Vec<&str> = claims.sub.split(':').collect();
-            player.id = split[2].parse::<u64>().unwrap();
+            player.id = split[2].parse::<i32>().unwrap();
             if player.auth.is_some() {
                 // owner
                 player.auth.as_mut().unwrap().owner = claims.owner;

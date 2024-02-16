@@ -19,7 +19,7 @@ pub struct AuthData {
 
 #[derive(Clone, PartialEq)]
 pub struct Character {
-    pub id: u64,
+    pub id: i32,
     pub name: String,
     pub last_logon: DateTime<Utc>,
     pub auth: Option<AuthData>,
@@ -59,7 +59,7 @@ impl Default for Character {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Corporation {
-    pub id: u64,
+    pub id: i32,
     pub name: String,
 }
 
@@ -79,7 +79,7 @@ impl Default for Corporation {
 }
 
 impl BasicCatalog for Corporation {
-    type Output = u64;
+    type Output = i32;
 
     fn id(&self) -> Self::Output {
         self.id
@@ -92,7 +92,7 @@ impl BasicCatalog for Corporation {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Alliance {
-    pub id: u64,
+    pub id: i32,
     pub name: String,
 }
 
@@ -112,7 +112,7 @@ impl Default for Alliance {
 }
 
 impl BasicCatalog for Alliance {
-    type Output = u64;
+    type Output = i32;
 
     fn id(&self) -> Self::Output {
         self.id
