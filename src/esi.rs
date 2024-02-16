@@ -60,7 +60,7 @@ impl<'a> EsiManager<'a> {
         Ok(result)
     }
 
-    pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<u64>>) -> Result<usize, Error> {
+    pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_alliance");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
@@ -112,7 +112,7 @@ impl<'a> EsiManager<'a> {
 
     pub fn remove_corporation(
         &mut self,
-        corporation_vec: Option<Vec<u64>>,
+        corporation_vec: Option<Vec<i32>>,
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_corporation");
@@ -172,7 +172,7 @@ impl<'a> EsiManager<'a> {
         Ok(result)
     }
 
-    pub fn remove_characters(&mut self, char_vec: Option<Vec<u64>>) -> Result<usize, Error> {
+    pub fn remove_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_character");
         let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;

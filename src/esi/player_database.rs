@@ -181,7 +181,7 @@ impl PlayerDatabase {
         Ok(true)
     }
 
-    pub(crate) fn delete_characters(conn: &Connection, ids: Vec<u64>) -> Result<usize, Error> {
+    pub(crate) fn delete_characters(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
         PlayerDatabase::delete_general(conn, "char", ids)
     }
 
@@ -225,7 +225,7 @@ impl PlayerDatabase {
         PlayerDatabase::insert_catalog(conn, "corp", corp)
     }
 
-    pub(crate) fn delete_corporation(conn: &Connection, ids: Vec<u64>) -> Result<usize, Error> {
+    pub(crate) fn delete_corporation(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
         PlayerDatabase::delete_general(conn, "corp", ids)
     }
 
@@ -262,12 +262,12 @@ impl PlayerDatabase {
     pub(crate) fn insert_alliance(conn: &Connection, ally: &Alliance) -> Result<usize, Error> {
         PlayerDatabase::insert_catalog(conn, "alliance", ally)
     }
-    pub(crate) fn delete_alliance(conn: &Connection, ids: Vec<u64>) -> Result<usize, Error> {
+    pub(crate) fn delete_alliance(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
         PlayerDatabase::delete_general(conn, "alliance", ids)
     }
 
     // function to delete values
-    fn delete_general(conn: &Connection, table: &str, ids: Vec<u64>) -> Result<usize, Error> {
+    fn delete_general(conn: &Connection, table: &str, ids: Vec<i32>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("delete_general");
 
