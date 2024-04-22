@@ -16,19 +16,19 @@ use self::player_database::PlayerDatabase;
 pub mod player_database;
 
 #[derive(Clone)]
-pub struct EsiManager<'a> {
+pub struct EsiManager {
     pub esi: Esi,
     pub characters: Vec<Character>,
-    pub path: &'a Path,
+    pub path: String,
     pub active_character: Option<i32>,
 }
 
-impl<'a> EsiManager<'a> {
+impl EsiManager {
     // Alliance
     pub fn write_alliance(&mut self, alliance: &Alliance) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_alliance");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
 
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
@@ -48,7 +48,7 @@ impl<'a> EsiManager<'a> {
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_alliance");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -63,7 +63,7 @@ impl<'a> EsiManager<'a> {
     pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_alliance");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -79,7 +79,7 @@ impl<'a> EsiManager<'a> {
     pub fn write_corporation(&mut self, corp: &Corporation) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_corporation");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -98,7 +98,7 @@ impl<'a> EsiManager<'a> {
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_corporation");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -116,7 +116,7 @@ impl<'a> EsiManager<'a> {
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_corporation");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -133,7 +133,7 @@ impl<'a> EsiManager<'a> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_character");
 
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -159,7 +159,7 @@ impl<'a> EsiManager<'a> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_characters");
 
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -175,7 +175,7 @@ impl<'a> EsiManager<'a> {
     pub fn remove_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_character");
-        let conn = Connection::open_with_flags(self.path, PlayerDatabase::open_flags())?;
+        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
         #[cfg(feature = "crypted-db")]
         PlayerDatabase::crypted_database_open(&conn)?;
 
@@ -193,7 +193,7 @@ impl<'a> EsiManager<'a> {
         client_secret: &str,
         callback_url: &str,
         scope: Vec<&str>,
-        database_path: Option<&'a str>,
+        database_path: Option<String>,
     ) -> Self {
 
         let native_auth_flow = false;
@@ -213,27 +213,28 @@ impl<'a> EsiManager<'a> {
         let path;
 
         if let Some(pathz) = database_path {
-            path = Path::new(pathz);
+            path = pathz;
         } else {
-            path = Path::new("telescope.db");
+            path = String::from("telescope.db");
         }
 
         let mut obj = EsiManager {
             esi,
             characters: Vec::new(),
-            path,
+            path: path.clone(),
             active_character: None,
         };
 
-        if !obj.path.exists() {
+        let temp_path = Path::new(&path);
+        if !temp_path.exists() {
             // TODO: migration database schema goes here
             let _ = PlayerDatabase::migrate_database();
-            if let Err(e) = PlayerDatabase::create_database(obj.path) {
+            if let Err(e) = PlayerDatabase::create_database(&Path::new(&obj.path)) {
                 panic!("Error: {}", e);
             }
         } else {
             // cargar jugadores existentes
-            let res_conn = Connection::open_with_flags(obj.path, PlayerDatabase::open_flags());
+            let res_conn = Connection::open_with_flags(obj.path.clone(), PlayerDatabase::open_flags());
             if let Ok(conn) = res_conn {
                 if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]) {
                     obj.characters = chars;

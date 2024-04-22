@@ -16,10 +16,11 @@ mod esi_manager {
     fn db_creation() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test1.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test1.db");
+        let path_c = path_str.clone();
+        let path = Path::new(&path_c);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(&path_str);
         }
         let _ = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -36,10 +37,10 @@ mod esi_manager {
     fn db_character() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test2.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test2.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -74,10 +75,10 @@ mod esi_manager {
     fn db_corporation() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test3.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test3.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -111,10 +112,10 @@ mod esi_manager {
     fn db_alliance() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test4.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test4.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -148,10 +149,10 @@ mod esi_manager {
     fn db_delete_character() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test5.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test5.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _a = fs::remove_file(path_str);
+            let _a = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -188,10 +189,10 @@ mod esi_manager {
     fn db_delete_corporation() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test6.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test6.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -226,10 +227,10 @@ mod esi_manager {
     fn db_delete_alliance() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/test7.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/test7.db");
+        let path = Path::new(&path_str);
         if path.exists() && path.is_file() {
-            let _ = fs::remove_file(path_str);
+            let _ = fs::remove_file(path_str.clone());
         }
         let mut mon = webb::esi::EsiManager::new(
             *USER_AGENT,
@@ -265,8 +266,9 @@ mod esi_manager {
     #[cfg_attr(not(feature = "esi-api-test"), ignore)]
     async fn esi_get_public_data() {
         let scope = vec!["publicData"]; //,"esi-location.read_location.v1"
-        let path_str = Some("tests/databases/esi0.db");
-        let path = Path::new(path_str.unwrap());
+        let path_str = Some(String::from("tests/databases/esi0.db"));
+        let path_c = path_str.unwrap().clone();
+        let path = Path::new(&path_c);
         //let mut vec = Vec::new();
         if path.exists() && path.is_file() {
             let _ = fs::remove_file(path);
@@ -278,7 +280,7 @@ mod esi_manager {
             *SECRET_KEY,
             *CALLBACK,
             scope,
-            path_str,
+            Some(path_c),
         );
         let auth_info = esimon.esi.get_authorize_url().unwrap();
         
@@ -322,8 +324,8 @@ mod esi_manager {
     fn db_get_characters() {
         let scope = vec![""];
 
-        let path_str = "tests/databases/char0.db";
-        let path = Path::new(path_str);
+        let path_str = String::from("tests/databases/char0.db");
+        let path = Path::new(&path_str);
         if !path.exists() && !path.is_file() {
             panic!("test database file not exists.")
         }
