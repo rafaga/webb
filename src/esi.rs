@@ -309,7 +309,7 @@ impl EsiManager {
                     result = values;
                 }
             });
-        let _ = timeout_at(Instant::now() + Duration::from_secs(300), server).await;
+        let _ = timeout_at(Instant::now() + Duration::from_secs(60), server).await;
         Ok(result)
     }
 
