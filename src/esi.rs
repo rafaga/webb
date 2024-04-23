@@ -190,26 +190,32 @@ impl EsiManager {
     pub fn new(
         useragent: &str,
         client_id: &str,
-        client_secret: &str,
+        _client_secret: &str,
         callback_url: &str,
         scope: Vec<&str>,
         database_path: Option<String>,
     ) -> Self {
 
-        let native_auth_flow = false;
-
-        #[cfg(feature = "native-auth-flow")]
-        let native_auth_flow = true;
-
+        #[cfg(not(feature = "native-auth-flow"))]
         let esi = EsiBuilder::new()
             .user_agent(useragent)
             .client_id(client_id)
-            .client_secret(client_secret)
+            .client_secret(_client_secret)
             .callback_url(callback_url)
-            .enable_application_authentication(native_auth_flow)
             .scope(scope.join(" ").as_str())
             .build()
             .unwrap();
+
+        #[cfg(feature = "native-auth-flow")]
+        let esi = EsiBuilder::new()
+            .user_agent(useragent)
+            .client_id(client_id)
+            .callback_url(callback_url)
+            .enable_application_authentication(true)
+            .scope(scope.join(" ").as_str())
+            .build()
+            .unwrap();
+
         let path;
 
         if let Some(pathz) = database_path {
@@ -315,6 +321,7 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
+        #[cfg(not(feature = "native-auth-flow"))]
         let verifier = None; 
 
         #[cfg(feature = "native-auth-flow")]
