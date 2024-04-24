@@ -12,6 +12,12 @@ use tokio::sync::oneshot::channel;
 use tokio::time::Duration;
 use tokio::time::{timeout_at, Instant};
 
+#[cfg(feature = "crypted-db")]
+use uuid::Uuid;
+
+#[cfg(feature = "crypted-db")]
+use rusqlite::vtab::array;
+
 use self::player_database::PlayerDatabase;
 pub mod player_database;
 
@@ -24,14 +30,31 @@ pub struct EsiManager {
 }
 
 impl EsiManager {
+
+    pub(crate) fn get_standart_connection(&self) -> Result<Connection, Error> {
+        let mut flags = OpenFlags::default();
+        flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
+        flags.set(OpenFlags::SQLITE_OPEN_FULL_MUTEX, true);
+        let connection = Connection::open_with_flags(self.path.clone(), flags)?;
+
+        // we add the carray module disguised as rarray in rusqlite
+        array::load_module(&connection)?;
+
+        #[cfg(feature = "crypted-db")]
+        {
+            let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
+            let query = ["PRAGMA key = '", uuid.to_string().as_str(), "'"].concat();
+            let mut statement = connection.prepare(query.as_str())?;
+            let _ = statement.query([])?;
+        }
+        Ok(connection)
+    }
+
     // Alliance
     pub fn write_alliance(&mut self, alliance: &Alliance) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_alliance");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
         let rows = if !players.is_empty() {
@@ -48,9 +71,7 @@ impl EsiManager {
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_alliance");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::select_alliance(&conn, id_ally)?
@@ -63,9 +84,7 @@ impl EsiManager {
     pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_alliance");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::delete_alliance(&conn, id_ally)?
@@ -79,9 +98,7 @@ impl EsiManager {
     pub fn write_corporation(&mut self, corp: &Corporation) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_corporation");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
@@ -98,9 +115,7 @@ impl EsiManager {
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_corporation");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result = if let Some(id_corp) = corporation_vec {
             PlayerDatabase::select_corporation(&conn, id_corp)?
@@ -116,9 +131,7 @@ impl EsiManager {
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_corporation");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result = if let Some(id_ally) = corporation_vec {
             PlayerDatabase::delete_corporation(&conn, id_ally)?
@@ -133,9 +146,7 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_character");
 
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         // first we need to assure that Corporation and alliance existys on database
         if let Some(corp) = &char.corp {
@@ -159,9 +170,7 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_characters");
 
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result;
         if let Some(id_chars) = char_vec {
@@ -175,9 +184,7 @@ impl EsiManager {
     pub fn remove_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_character");
-        let conn = Connection::open_with_flags(Path::new(&self.path), PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
+        let conn = self.get_standart_connection().unwrap();
 
         let result = if let Some(id_chars) = char_vec {
             PlayerDatabase::delete_characters(&conn, id_chars)?
@@ -232,22 +239,21 @@ impl EsiManager {
         };
 
         let temp_path = Path::new(&path);
-        if !temp_path.exists() {
-            // TODO: migration database schema goes here
-            let _ = PlayerDatabase::migrate_database();
-            if let Err(e) = PlayerDatabase::create_database(&Path::new(&obj.path)) {
-                panic!("Error: {}", e);
-            }
-        } else {
-            // cargar jugadores existentes
-            let res_conn = Connection::open_with_flags(obj.path.clone(), PlayerDatabase::open_flags());
-            if let Ok(conn) = res_conn {
-                if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]) {
+
+        if let Ok(res_conn) = obj.get_standart_connection(){
+            if !temp_path.exists() {
+                // TODO: migration database schema goes here
+                let _ = PlayerDatabase::migrate_database();
+                if let Err(e) = PlayerDatabase::create_database(&res_conn) {
+                    panic!("Error: {}", e);
+                }
+            } else {
+                // cargar jugadores existentes
+                if let Ok(chars) = PlayerDatabase::select_characters(&res_conn, vec![]) {
                     obj.characters = chars;
                 }
             }
         }
-
         obj
     }
 

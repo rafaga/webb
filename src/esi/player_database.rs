@@ -1,30 +1,15 @@
 use crate::esi::Error;
 use crate::objects::{Alliance, BasicCatalog, Character, Corporation};
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, OpenFlags, ToSql};
-use std::path::Path;
-#[cfg(feature = "crypted-db")]
-use uuid::Uuid;
+use rusqlite::{Connection, ToSql};
 
 pub(crate) struct PlayerDatabase {}
 
 impl PlayerDatabase {
-    #[cfg(feature = "crypted-db")]
-    pub(crate) fn crypted_database_open(conn: &Connection) -> Result<(), Error> {
-        let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
-        let query = ["PRAGMA key = '", uuid.to_string().as_str(), "'"].concat();
-        let mut statement = conn.prepare(query.as_str())?;
-        let _ = statement.query([])?;
-        Ok(())
-    }
 
-    pub(crate) fn create_database(path: &Path) -> Result<bool, Error> {
+    pub(crate) fn create_database(conn: &Connection) -> Result<bool, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("create_database");
-
-        let conn = Connection::open_with_flags(path, PlayerDatabase::open_flags())?;
-        #[cfg(feature = "crypted-db")]
-        PlayerDatabase::crypted_database_open(&conn)?;
 
         //Character Public Data
         let mut query =
@@ -168,13 +153,6 @@ impl PlayerDatabase {
         // Remove trailing comma
         s.pop();
         s
-    }
-
-    pub(crate) fn open_flags() -> OpenFlags {
-        let mut flags = OpenFlags::default();
-        flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
-        flags.set(OpenFlags::SQLITE_OPEN_FULL_MUTEX, true);
-        flags
     }
 
     pub(crate) fn migrate_database() -> Result<bool, Error> {
