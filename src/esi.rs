@@ -236,22 +236,22 @@ impl EsiManager {
             active_character: None,
         };
 
+        // Path needs to be checked before invoking rusqlite to be effective
         let temp_path = Path::new(&path);
-
-        if let Ok(res_conn) = obj.get_standart_connection(){
-            if !temp_path.exists() {
-                // TODO: migration database schema goes here
-                let _ = PlayerDatabase::migrate_database();
-                if let Err(e) = PlayerDatabase::create_database(&res_conn) {
-                    panic!("Error: {}", e);
-                }
-            } else {
-                // cargar jugadores existentes
-                if let Ok(chars) = PlayerDatabase::select_characters(&res_conn, vec![]) {
-                    obj.characters = chars;
-                }
+        if !temp_path.exists() || !temp_path.is_file() {
+            // TODO: migration database schema goes here
+            let conn = obj.get_standart_connection();
+            let _ = PlayerDatabase::create_database(&conn.unwrap());
+            let _ = PlayerDatabase::migrate_database();
+        } else {
+            let conn = obj.get_standart_connection();
+            // cargar jugadores existentes
+            if let Ok(chars) = PlayerDatabase::select_characters(&conn.unwrap(), vec![]) {
+                obj.characters = chars;
             }
         }
+
+
         obj
     }
 
