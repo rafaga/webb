@@ -11,12 +11,10 @@ use std::path::Path;
 use tokio::sync::oneshot::channel;
 use tokio::time::Duration;
 use tokio::time::{timeout_at, Instant};
+use rusqlite::vtab::array;
 
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
-
-#[cfg(feature = "crypted-db")]
-use rusqlite::vtab::array;
 
 use self::player_database::PlayerDatabase;
 pub mod player_database;
@@ -380,6 +378,8 @@ impl EsiManager {
                 }
                 let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
                 player.photo = Some(player_portraits.px128x128.unwrap());
+                let player_location = self.esi.group_location().get_location(player.id).await?;
+                player.location = player_location.solar_system_id;
                 /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
                         player.photo = Some(photo_vec);
                 }*/

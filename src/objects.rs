@@ -26,7 +26,7 @@ pub struct Character {
     pub corp: Option<Corporation>,
     pub alliance: Option<Alliance>,
     pub photo: Option<String>,
-    pub location: u64,
+    pub location: i32,
 }
 
 impl Character {
