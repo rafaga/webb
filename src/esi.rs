@@ -1,16 +1,11 @@
-use crate::auth_service::MakeSvc;
 use crate::objects::{Alliance, Character, Corporation};
 use chrono::{DateTime, Utc};
 use hyper::body::HttpBody;
-use hyper::{Client, Server};
+use hyper::Client;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
 use rusqlite::*;
-use std::net::SocketAddr;
 use std::path::Path;
-use tokio::sync::oneshot::channel;
-use tokio::time::Duration;
-use tokio::time::{timeout_at, Instant};
 use rusqlite::vtab::array;
 
 #[cfg(feature = "crypted-db")]
@@ -292,7 +287,7 @@ impl EsiManager {
         Ok(Some(photo))
     }
 
-    #[tokio::main]
+    /*#[tokio::main]
     pub async fn launch_auth_server(port: u16) -> Result<(String,String), Error> {
         crate::esi::EsiManager::priv_launch_auth_server(port).await
     }
@@ -302,20 +297,20 @@ impl EsiManager {
         puffin::profile_scope!("esi_priv_launch_auth_server");
 
         let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let (tx, rx) = channel::<(String, String)>();
-        crate::SHARED_TX.lock().await.replace(tx);
+        let (tx, mut rx) = tokio::sync::oneshot::channel::<(String, String)>();
+        //crate::SHARED_TX.lock().await.replace(tx);
         let mut result = (String::new(), String::new());
+        let atx = &tx;
         let server = Server::bind(&addr)
-            .serve(MakeSvc::new())
+            .serve(MakeSvc::new(atx))
             .with_graceful_shutdown(async {
-                let msg = rx.await.ok();
-                if let Some(values) = msg {
+                if let Ok(values) = rx.try_recv() {
                     result = values;
                 }
             });
         let _ = timeout_at(Instant::now() + Duration::from_secs(60), server).await;
         Ok(result)
-    }
+    }*/
 
     pub async fn auth_user(
         &mut self,

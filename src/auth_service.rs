@@ -1,17 +1,20 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
-
+use std::sync::Arc;
 use hyper::service::Service;
 use hyper::{Body, Method, StatusCode};
 use hyper::{Request, Response};
+use tokio::sync::mpsc::Sender;
+use tokio::runtime::Builder;
 
-use futures::executor::block_on;
 
-static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safetly.</p></body></html>";
+static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safely.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
 
-pub(crate) struct AuthService {}
+pub struct AuthService {
+    tx: Arc<Sender<(String,String)>>
+}
 
 impl AuthService {}
 
@@ -44,10 +47,15 @@ impl Service<Request<Body>> for AuthService {
                         }
                     }
                     if !message.0.is_empty() && !message.1.is_empty() {
-                        block_on(async {
-                            if let Some(tx) = crate::SHARED_TX.lock().await.take() {
-                                let _res = tx.send(message.clone());
-                            }
+                        let rt = Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .unwrap();
+                        let atx = Arc::clone(&self.tx);
+                        std::thread::spawn(move || {
+                            rt.block_on(async {
+                                let _res = atx.send(message).await;
+                            });
                         });
                         Ok(Response::builder()
                             .status(StatusCode::OK)
@@ -75,11 +83,15 @@ impl Service<Request<Body>> for AuthService {
     }
 }
 
-pub(crate) struct MakeSvc {}
+pub struct MakeSvc {
+    tx: Arc<Sender<(String,String)>>
+}
 
 impl MakeSvc {
-    pub fn new() -> Self {
-        MakeSvc {}
+    pub fn new( tx: Arc<Sender<(String,String)>>) -> Self {
+        MakeSvc {
+            tx: tx
+        }
     }
 }
 
@@ -93,7 +105,8 @@ impl<T> Service<T> for MakeSvc {
     }
 
     fn call(&mut self, _: T) -> Self::Future {
-        let fut = async move { Ok(AuthService {}) };
+        let atx = Arc::clone(&self.tx);
+        let fut = async move { Ok(AuthService {tx: atx}) };
         Box::pin(fut)
     }
 }

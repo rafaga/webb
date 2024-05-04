@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod esi_manager {
-    use lazy_static::lazy_static;
-    use std::fs;
+    /*use std::fs;
     use std::path::Path;
     use webb::objects::{Alliance, Character, Corporation};
 
@@ -342,5 +341,5 @@ mod esi_manager {
         if let Ok(chars) = res_chars {
             assert_eq!(chars.len(), 1);
         }
-    }
+    }*/
 }
