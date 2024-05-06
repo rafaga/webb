@@ -193,7 +193,7 @@ impl EsiManager {
         _client_secret: &str,
         callback_url: &str,
         scope: Vec<&str>,
-        database_path: Option<String>,
+        database_path: String,
     ) -> Self {
 
         #[cfg(not(feature = "native-auth-flow"))]
@@ -216,23 +216,15 @@ impl EsiManager {
             .build()
             .unwrap();
 
-        let path;
-
-        if let Some(pathz) = database_path {
-            path = pathz;
-        } else {
-            path = String::from("telescope.db");
-        }
-
         let mut obj = EsiManager {
             esi,
             characters: Vec::new(),
-            path: path.clone(),
+            path: database_path,
             active_character: None,
         };
 
         // Path needs to be checked before invoking rusqlite to be effective
-        let temp_path = Path::new(&path);
+        let temp_path = Path::new(&obj.path);
         if !temp_path.exists() || !temp_path.is_file() {
             // TODO: migration database schema goes here
             let conn = obj.get_standart_connection();
@@ -245,7 +237,6 @@ impl EsiManager {
                 obj.characters = chars;
             }
         }
-
 
         obj
     }

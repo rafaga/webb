@@ -17,7 +17,7 @@ futures = "0.3"
 hyper = { version = "0.14", features = ["server", "runtime", "client", "http1"] }
 hyper-tls = "0.5"
 lazy_static = "1"
-open = "4"
+open = "5.1.2"
 rfesi = {version = "0"}
 serde = { version = "1", features = ["serde_derive"] }
 tokio = { version = "1", features = ["tokio-macros", "rt", "rt-multi-thread", "macros"] }
