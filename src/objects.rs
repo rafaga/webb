@@ -1,7 +1,6 @@
 use chrono::prelude::*;
 use rusqlite::Error;
 
-
 pub trait EsiObject {
     fn retrieve() -> Result<bool, Error>;
 }

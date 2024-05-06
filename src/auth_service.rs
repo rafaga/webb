@@ -1,19 +1,18 @@
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::sync::Arc;
 use hyper::service::Service;
 use hyper::{Body, Method, StatusCode};
 use hyper::{Request, Response};
-use tokio::sync::mpsc::Sender;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
 use tokio::runtime::Builder;
-
+use tokio::sync::mpsc::Sender;
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safely.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
 
 pub struct AuthService {
-    tx: Arc<Sender<(String,String)>>
+    tx: Arc<Sender<(String, String)>>,
 }
 
 impl AuthService {}
@@ -47,10 +46,7 @@ impl Service<Request<Body>> for AuthService {
                         }
                     }
                     if !message.0.is_empty() && !message.1.is_empty() {
-                        let rt = Builder::new_current_thread()
-                            .enable_all()
-                            .build()
-                            .unwrap();
+                        let rt = Builder::new_current_thread().enable_all().build().unwrap();
                         let atx = Arc::clone(&self.tx);
                         std::thread::spawn(move || {
                             rt.block_on(async {
@@ -84,14 +80,12 @@ impl Service<Request<Body>> for AuthService {
 }
 
 pub struct MakeSvc {
-    tx: Arc<Sender<(String,String)>>
+    tx: Arc<Sender<(String, String)>>,
 }
 
 impl MakeSvc {
-    pub fn new( tx: Arc<Sender<(String,String)>>) -> Self {
-        MakeSvc {
-            tx: tx
-        }
+    pub fn new(tx: Arc<Sender<(String, String)>>) -> Self {
+        MakeSvc { tx }
     }
 }
 
@@ -106,7 +100,7 @@ impl<T> Service<T> for MakeSvc {
 
     fn call(&mut self, _: T) -> Self::Future {
         let atx = Arc::clone(&self.tx);
-        let fut = async move { Ok(AuthService {tx: atx}) };
+        let fut = async move { Ok(AuthService { tx: atx }) };
         Box::pin(fut)
     }
 }

@@ -282,7 +282,7 @@ mod esi_manager {
             Some(path_c),
         );
         let auth_info = esimon.esi.get_authorize_url().unwrap();
-        
+
         match open::that(&auth_info.authorization_url) {
             Ok(()) => {
                 let mut vec = vec![];

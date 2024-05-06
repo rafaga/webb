@@ -6,7 +6,6 @@ use rusqlite::{Connection, ToSql};
 pub(crate) struct PlayerDatabase {}
 
 impl PlayerDatabase {
-
     pub(crate) fn create_database(conn: &Connection) -> Result<bool, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("create_database");
@@ -102,7 +101,7 @@ impl PlayerDatabase {
         query += "lastlogon = ?, location = ? WHERE id = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
         // TODO: Corregir
-        //let alliance = 
+        //let alliance =
         let params = rusqlite::params![
             character.name,
             character.alliance.as_ref().unwrap().id,

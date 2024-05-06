@@ -4,9 +4,9 @@ use hyper::body::HttpBody;
 use hyper::Client;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
+use rusqlite::vtab::array;
 use rusqlite::*;
 use std::path::Path;
-use rusqlite::vtab::array;
 
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
@@ -23,7 +23,6 @@ pub struct EsiManager {
 }
 
 impl EsiManager {
-
     pub(crate) fn get_standart_connection(&self) -> Result<Connection, Error> {
         let mut flags = OpenFlags::default();
         flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
@@ -195,7 +194,6 @@ impl EsiManager {
         scope: Vec<&str>,
         database_path: String,
     ) -> Self {
-
         #[cfg(not(feature = "native-auth-flow"))]
         let esi = EsiBuilder::new()
             .user_agent(useragent)
@@ -260,9 +258,8 @@ impl EsiManager {
 
         let https = HttpsConnector::new();
         let client = Client::builder().build::<_, hyper::Body>(https);
-        let uri;
-        match url.parse::<hyper::Uri>() {
-            Ok(parsed_uri) => uri = parsed_uri,
+        let uri = match url.parse::<hyper::Uri>() {
+            Ok(parsed_uri) => parsed_uri,
             Err(t_error) => return Err(t_error.to_string() + " > " + url),
         };
         let mut resp;
@@ -306,18 +303,21 @@ impl EsiManager {
     pub async fn auth_user(
         &mut self,
         _auth_info: AuthenticationInformation,
-        oauth_data:(String,String)
+        oauth_data: (String, String),
     ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_auth_user");
 
         #[cfg(not(feature = "native-auth-flow"))]
-        let verifier = None; 
+        let verifier = None;
 
         #[cfg(feature = "native-auth-flow")]
         let verifier = _auth_info.pkce_verifier;
 
-        let claims_option = self.esi.authenticate(oauth_data.0.as_str(), verifier).await?;
+        let claims_option = self
+            .esi
+            .authenticate(oauth_data.0.as_str(), verifier)
+            .await?;
         if let Some(claims) = claims_option {
             let mut player = Character::new();
             //let data = claims.unwrap();
