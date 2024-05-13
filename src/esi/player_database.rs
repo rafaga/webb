@@ -1,7 +1,7 @@
 use crate::esi::Error;
-use crate::objects::{Alliance, BasicCatalog, Character, Corporation};
+use crate::objects::{Alliance, AuthData, BasicCatalog, Character, Corporation};
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, ToSql};
+use rusqlite::{Connection, ToSql,params};
 
 pub(crate) struct PlayerDatabase {}
 
@@ -22,7 +22,7 @@ impl PlayerDatabase {
         // Character Auth Data
         query = String::from("CREATE TABLE char_auth (id INTEGER REFERENCES char (id)");
         query += " ON UPDATE CASCADE ON DELETE CASCADE, owner TEXT NOT NULL, jti TEXT NOT NULL, ";
-        query += " token VARCHAR(255) NOT NULL, expiration DATETIME)";
+        query += " token VARCHAR(255) NOT NULL, expiration DATETIME, refresh_token VARCHAR(255) NOT NULL)";
         let mut statement = conn.prepare(&query)?;
         statement.execute([])?;
 
@@ -100,8 +100,7 @@ impl PlayerDatabase {
         let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
         query += "lastlogon = ?, location = ? WHERE id = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
-        // TODO: Corregir
-        //let alliance =
+        // TODO: Add Auth data 
         let params = rusqlite::params![
             character.name,
             character.alliance.as_ref().unwrap().id,
@@ -111,7 +110,61 @@ impl PlayerDatabase {
             character.id
         ];
         let rows: usize = statement.execute(params)?;
+        PlayerDatabase::update_auth(conn, character.id, character.auth.as_ref().unwrap())?;
         Ok(rows)
+    }
+
+    pub(crate) fn select_auth(conn: &Connection, player_id: i32) -> Result<AuthData, Error> {
+        let mut result = AuthData {
+            owner: String::new(),
+            jti:String::new(),
+            token: String::new(),
+            expiration: None,
+            refresh_token: String::new()
+        };
+        let query = String::from(
+            "SELECT id, owner, jti, token, expiration, refresh_token FROM char_auth WHERE id = ?",
+        );
+        let mut statement = conn.prepare(&query)?;
+        let mut rows = statement.query([player_id as u32])?;
+        while let Some(row) = rows.next()? {
+            result.owner = row.get(1)?;
+            result.jti = row.get(2)?;
+            result.token = row.get(3)?;
+            let utc_dt = DateTime::parse_from_rfc3339(&row.get::<usize,String>(4)?).unwrap();
+            result.expiration = Some(utc_dt.to_utc());
+            result.refresh_token = row.get(5)?;
+        }
+        Ok(result)
+    }
+
+    pub(crate) fn insert_auth(conn: &Connection, character_id: i32, auth_data:&AuthData) -> Result<usize, Error> {
+        let mut query = String::from("INSERT INTO char_auth (id,");
+        query += "owner, jti, token, expiration, refresh_token) VALUES (?,?,?,?,?,?)";
+        let mut statement = conn.prepare(&query)?;
+        let rows = statement.execute(params![character_id, auth_data.owner, auth_data.jti, auth_data.token, auth_data.expiration.unwrap().to_rfc3339() , auth_data.refresh_token])?;
+        Ok(rows)
+    }
+
+    pub(crate) fn update_auth(conn: &Connection, character_id: i32, auth_data:&AuthData) -> Result<usize, Error> {
+        let mut query = String::from("UPDATE char_auth SET owner = ?, jti = ?,  ");
+        query += " token = ?, expiration = ?, refresh_token = ? WHERE id = ?;";
+        let mut statement = conn.prepare(query.as_str()).unwrap();
+        // TODO: Add Auth data 
+        let params = rusqlite::params![
+            auth_data.owner,
+            auth_data.jti,
+            auth_data.token,
+            auth_data.expiration.unwrap().to_rfc3339(),
+            auth_data.refresh_token,
+            character_id as i32
+        ];
+        let rows: usize = statement.execute(params)?;
+        Ok(rows)
+    }
+
+    pub(crate) fn delete_auth(conn: &Connection, auth_data:&AuthData, player_id:usize) -> Result<usize, Error> {
+        PlayerDatabase::delete_general(conn,"char_auth",vec![player_id as i32])
     }
 
     pub(crate) fn insert_character(conn: &Connection, player: &Character) -> Result<usize, Error> {
@@ -136,13 +189,7 @@ impl PlayerDatabase {
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
         let rows = statement.raw_execute()?;
-        if let Some(auth_data) = &player.auth {
-            query = String::from("INSERT INTO char_auth (id, owner, jti, token) VALUES  (?,?,?,?)");
-            let mut statement = conn.prepare(query.as_str())?;
-            let values = (auth_data.jti.clone(), auth_data.token.clone());
-            let params = rusqlite::params![player.id, values.0, values.1, 0];
-            let _ = statement.execute(params)?;
-        }
+        PlayerDatabase::insert_auth(conn,player.id,player.auth.as_ref().unwrap())?;
         Ok(rows)
     }
 

@@ -15,6 +15,7 @@ pub struct AuthData {
     pub jti: String,
     pub token: String,
     pub expiration: Option<DateTime<Utc>>,
+    pub refresh_token:String,
 }
 
 #[derive(Clone, PartialEq)]
@@ -36,6 +37,7 @@ impl Character {
             jti: String::new(),
             token: String::new(),
             expiration: None,
+            refresh_token: String::new(),
         };
 
         Character {

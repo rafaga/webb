@@ -1,5 +1,5 @@
 use crate::objects::{Alliance, Character, Corporation};
-use chrono::{DateTime, Utc};
+use chrono::{TimeDelta, Utc};
 use hyper::body::HttpBody;
 use hyper::Client;
 use hyper_tls::HttpsConnector;
@@ -275,31 +275,6 @@ impl EsiManager {
         Ok(Some(photo))
     }
 
-    /*#[tokio::main]
-    pub async fn launch_auth_server(port: u16) -> Result<(String,String), Error> {
-        crate::esi::EsiManager::priv_launch_auth_server(port).await
-    }
-
-    pub async fn priv_launch_auth_server(port: u16) -> Result<(String,String), Error> {
-        #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_priv_launch_auth_server");
-
-        let addr: SocketAddr = ([127, 0, 0, 1], port).into();
-        let (tx, mut rx) = tokio::sync::oneshot::channel::<(String, String)>();
-        //crate::SHARED_TX.lock().await.replace(tx);
-        let mut result = (String::new(), String::new());
-        let atx = &tx;
-        let server = Server::bind(&addr)
-            .serve(MakeSvc::new(atx))
-            .with_graceful_shutdown(async {
-                if let Ok(values) = rx.try_recv() {
-                    result = values;
-                }
-            });
-        let _ = timeout_at(Instant::now() + Duration::from_secs(60), server).await;
-        Ok(result)
-    }*/
-
     pub async fn auth_user(
         &mut self,
         _auth_info: AuthenticationInformation,
@@ -319,6 +294,7 @@ impl EsiManager {
             .authenticate(oauth_data.0.as_str(), verifier)
             .await?;
         if let Some(claims) = claims_option {
+            
             let mut player = Character::new();
             //let data = claims.unwrap();
             //character name
@@ -331,12 +307,15 @@ impl EsiManager {
                 player.auth.as_mut().unwrap().owner = claims.owner;
                 //jti
                 player.auth.as_mut().unwrap().jti = claims.jti;
+                player.auth.as_mut().unwrap().token = self.esi.access_token.as_ref().unwrap().to_string();
+                player.auth.as_mut().unwrap().refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
                 //expiration Date
-                let expiration: DateTime<Utc> =
-                    DateTime::parse_from_str(&claims.exp.to_string(), "%s")
+                let expiration = Utc::now().checked_add_signed(TimeDelta::new(self.esi.access_token.as_ref().unwrap().parse::<i64>()?,0).unwrap());
+                /*let expiration: DateTime<Utc> =
+                    DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
                         .unwrap()
-                        .into();
-                player.auth.as_mut().unwrap().expiration = Some(expiration);
+                        .into();*/
+                player.auth.as_mut().unwrap().expiration = expiration;
                 self.esi.update_spec().await?;
 
                 let public_info = self
