@@ -11,8 +11,6 @@ pub enum TelescopeDbError {
 
 #[derive(Clone, PartialEq)]
 pub struct AuthData {
-    pub owner: String,
-    pub jti: String,
     pub token: String,
     pub expiration: Option<DateTime<Utc>>,
     pub refresh_token:String,
@@ -33,8 +31,6 @@ pub struct Character {
 impl Character {
     pub fn new() -> Self {
         let auth = AuthData {
-            owner: String::new(),
-            jti: String::new(),
             token: String::new(),
             expiration: None,
             refresh_token: String::new(),

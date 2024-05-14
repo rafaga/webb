@@ -303,10 +303,6 @@ impl EsiManager {
             let split: Vec<&str> = claims.sub.split(':').collect();
             player.id = split[2].parse::<i32>().unwrap();
             if player.auth.is_some() {
-                // owner
-                player.auth.as_mut().unwrap().owner = claims.owner;
-                //jti
-                player.auth.as_mut().unwrap().jti = claims.jti;
                 player.auth.as_mut().unwrap().token = self.esi.access_token.as_ref().unwrap().to_string();
                 player.auth.as_mut().unwrap().refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
                 //expiration Date
