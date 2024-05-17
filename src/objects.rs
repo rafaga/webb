@@ -16,6 +16,16 @@ pub struct AuthData {
     pub refresh_token:String,
 }
 
+impl AuthData{
+    pub fn new() -> Self {
+        AuthData {
+            token: String::new(),
+            expiration: None,
+            refresh_token: String::new()
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct Character {
     pub id: i32,

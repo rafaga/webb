@@ -2,6 +2,8 @@ use crate::esi::Error;
 use crate::objects::{Alliance, AuthData, BasicCatalog, Character, Corporation};
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, ToSql,params};
+use rusqlite::vtab::array;
+use std::rc::Rc;
 
 pub(crate) struct PlayerDatabase {}
 
@@ -16,13 +18,6 @@ impl PlayerDatabase {
         query += " corporation INTEGER REFERENCES corp(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " alliance INTEGER REFERENCES alliance(id) ON DELETE CASCADE ON UPDATE CASCADE,";
         query += " portrait BLOB, lastLogon DATETIME NOT NULL, location INTEGER NOT NULL)";
-        let mut statement = conn.prepare(&query)?;
-        statement.execute([])?;
-
-        // Character Auth Data
-        query = String::from("CREATE TABLE char_auth (id INTEGER REFERENCES char (id)");
-        query += " ON UPDATE CASCADE ON DELETE CASCADE, ";
-        query += " token VARCHAR(255) NOT NULL, expiration DATETIME, refresh_token VARCHAR(255) NOT NULL)";
         let mut statement = conn.prepare(&query)?;
         statement.execute([])?;
 
@@ -85,9 +80,9 @@ impl PlayerDatabase {
                 char.last_logon = utc_dt;
             }
             char.location = row.get::<usize, i32>(6)?;
-            if let Ok(auth_data) =  PlayerDatabase::select_auth(conn, char.id) {
+            /*if let Ok(auth_data) =  PlayerDatabase::select_auth(conn, char.id) {
                 char.auth=Some(auth_data);
-            }
+            }*/
             result.push(char);
         }
         Ok(result)
@@ -113,55 +108,84 @@ impl PlayerDatabase {
             character.id
         ];
         let rows: usize = statement.execute(params)?;
-        PlayerDatabase::update_auth(conn, character.id, character.auth.as_ref().unwrap())?;
+        //PlayerDatabase::update_auth(conn, character.id, character.auth.as_ref().unwrap())?;
         Ok(rows)
     }
 
-    pub(crate) fn select_auth(conn: &Connection, player_id: i32) -> Result<AuthData, Error> {
-        let mut result = AuthData {
-            token: String::new(),
-            expiration: None,
-            refresh_token: String::new()
-        };
+    pub(crate) fn select_auth(conn: &Connection) -> Result<AuthData, Error> {
+        let values = vec![String::from("token"),String::from("expiration"),String::from("refresh_token")];
+        let mut result = AuthData::new();
         let query = String::from(
-            "SELECT id, token, expiration, refresh_token FROM char_auth WHERE id = ?",
+            "SELECT id, value FROM metadata WHERE id IN rarray(?)",
         );
+
         let mut statement = conn.prepare(&query)?;
-        let mut rows = statement.query([player_id as u32])?;
+        let id_list: array::Array = Rc::new(
+            values
+                .into_iter()
+                .map(rusqlite::types::Value::from)
+                .collect::<Vec<rusqlite::types::Value>>(),
+        );
+        let mut rows = statement.query([id_list])?;
         while let Some(row) = rows.next()? {
-            result.token = row.get(1)?;
-            let utc_dt = DateTime::parse_from_rfc3339(&row.get::<usize,String>(2)?).unwrap();
-            result.expiration = Some(utc_dt.to_utc());
-            result.refresh_token = row.get(3)?;
+            let field:String = row.get(0)?;
+            if field.as_str() == "token" {
+                result.token =  row.get(1)?;
+            }
+            if field.as_str() == "expiration" {
+                let date_as_string = row.get::<usize,String>(1)?;
+                let utc_dt = DateTime::parse_from_rfc3339(&date_as_string).unwrap();
+                result.expiration =  Some(utc_dt.to_utc());
+            }
+            if field.as_str() == "refresh_token" {
+                result.refresh_token =  row.get(1)?;
+            }
         }
         Ok(result)
     }
 
-    pub(crate) fn insert_auth(conn: &Connection, character_id: i32, auth_data:&AuthData) -> Result<usize, Error> {
-        let mut query = String::from("INSERT INTO char_auth (id,");
-        query += "token, expiration, refresh_token) VALUES (?,?,?,?)";
+    pub(crate) fn insert_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
+        let mut data: Vec<(String,String)> = Vec::new();
+        let mut query = String::from("INSERT INTO metadata (id,value)");
+        query += " VALUES (?,?)";
+        data.push((String::from("token"),auth_data.token.clone()));
+        data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
+        if let Some(expiration_date) = auth_data.expiration {
+            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+        }
         let mut statement = conn.prepare(&query)?;
-        let rows = statement.execute(params![character_id, auth_data.token, auth_data.expiration.unwrap().to_rfc3339() , auth_data.refresh_token])?;
+        
+        let mut rows = 0;
+        for item in data {
+            let affected_rows = statement.execute(params![item.0,item.1])?;
+            rows += affected_rows;
+        }
         Ok(rows)
     }
 
-    pub(crate) fn update_auth(conn: &Connection, character_id: i32, auth_data:&AuthData) -> Result<usize, Error> {
-        let mut query = String::from("UPDATE char_auth SET owner = ?, jti = ?,  ");
-        query += " token = ?, expiration = ?, refresh_token = ? WHERE id = ?;";
-        let mut statement = conn.prepare(query.as_str()).unwrap();
-        // TODO: Add Auth data 
-        let params = rusqlite::params![
-            auth_data.token,
-            auth_data.expiration.unwrap().to_rfc3339(),
-            auth_data.refresh_token,
-            character_id as i32
-        ];
-        let rows: usize = statement.execute(params)?;
+    pub(crate) fn update_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
+        let query = String::from("UPDATE metadata SET value = ? WHERE id = ?;");
+        let mut statement = conn.prepare(&query).unwrap();
+        let mut data:Vec<(String,String)> = Vec::new();
+        data.push((String::from("token"),auth_data.token.clone()));
+        data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
+        if let Some(expiration_date) = auth_data.expiration {
+            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+        }
+        
+        let mut rows = 0;
+        for item in data {
+            let affected_rows = statement.execute(params![item.0,item.1])?;
+            rows += affected_rows;
+        }
         Ok(rows)
     }
 
-    pub(crate) fn delete_auth(conn: &Connection, player_id:usize) -> Result<usize, Error> {
-        PlayerDatabase::delete_general(conn,"char_auth",vec![player_id as i32])
+    pub(crate) fn delete_auth(conn: &Connection) -> Result<usize, Error> {
+        let query = "DELETE FROM metadata WHERE id IN ('token','expiration','refresh_token');";
+        let mut statement = conn.prepare(query).unwrap();
+        let affected_rows = statement.execute([])?;
+        Ok(affected_rows)
     }
 
     pub(crate) fn insert_character(conn: &Connection, player: &Character) -> Result<usize, Error> {
@@ -186,7 +210,7 @@ impl PlayerDatabase {
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
         let rows = statement.raw_execute()?;
-        PlayerDatabase::insert_auth(conn,player.id,player.auth.as_ref().unwrap())?;
+        //PlayerDatabase::insert_auth(conn,player.id,player.auth.as_ref().unwrap())?;
         Ok(rows)
     }
 

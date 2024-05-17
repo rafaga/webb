@@ -251,6 +251,28 @@ impl EsiManager {
         }
     }
 
+    pub async fn token_valid(&self) -> Result<bool,Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_scope!("token_expired");
+        let mut result = false;
+        let conn =  self.get_standart_connection()?;
+        let auth = PlayerDatabase::select_auth(&conn)?;
+        if !auth.token.is_empty() {
+            let current_datetime = chrono::Utc::now();
+            //if auth.expiration =
+            let offset =  auth.expiration.unwrap() - current_datetime;
+            if offset.num_seconds() >= 0 {
+                result = true;
+            }
+        }
+        Ok(result)
+    }
+
+    pub async fn refresh_token(&mut self, refresh_token: String) -> Result<i32,Error> {
+        let _ = self.esi.refresh_access_token(Some(&refresh_token)).await;
+        Ok(0)
+    }
+
     #[tokio::main]
     pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>, String> {
         #[cfg(feature = "puffin")]
