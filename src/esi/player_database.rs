@@ -39,6 +39,8 @@ impl PlayerDatabase {
         query = "INSERT INTO metadata (id,value) VALUES (?,?)";
         statement = conn.prepare(query)?;
         statement.execute(["db", "0"])?;
+
+        PlayerDatabase::insert_auth(conn, &AuthData::new())?;
         Ok(true)
     }
 
@@ -152,6 +154,8 @@ impl PlayerDatabase {
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
         if let Some(expiration_date) = auth_data.expiration {
             data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+        } else {
+            data.push((String::from("expiration"),String::new()));
         }
         let mut statement = conn.prepare(&query)?;
         
@@ -171,8 +175,9 @@ impl PlayerDatabase {
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
         if let Some(expiration_date) = auth_data.expiration {
             data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+        } else {
+            data.push((String::from("expiration"),String::new()));
         }
-        
         let mut rows = 0;
         for item in data {
             let affected_rows = statement.execute(params![item.0,item.1])?;

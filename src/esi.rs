@@ -1,12 +1,16 @@
 use crate::objects::{Alliance, Character, Corporation};
 use chrono::{TimeDelta, Utc};
 use hyper::body::HttpBody;
-use hyper::Client;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
 use rusqlite::vtab::array;
 use rusqlite::*;
 use std::path::Path;
+use hyper_util::client::legacy::connect::HttpConnector;
+use http_body_util::Empty;
+use bytes::Bytes;
+use hyper_util::{client::legacy::Client, rt::TokioExecutor};
+use crate::objects::AuthData;
 
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
@@ -17,6 +21,7 @@ pub mod player_database;
 #[derive(Clone)]
 pub struct EsiManager {
     pub esi: Esi,
+    pub auth: AuthData,
     pub characters: Vec<Character>,
     pub path: String,
     pub active_character: Option<i32>,
@@ -216,6 +221,7 @@ impl EsiManager {
 
         let mut obj = EsiManager {
             esi,
+            auth: AuthData::new(),
             characters: Vec::new(),
             path: database_path,
             active_character: None,
@@ -239,9 +245,13 @@ impl EsiManager {
         obj
     }
 
-    pub async fn get_location(&self, player_id: i32) -> Result<i32, Error> {
+    pub async fn get_location(&mut self, player_id: i32) -> Result<i32, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
+
+        if !self.valid_token().await? {
+            self.refresh_token(self.auth.refresh_token.clone()).await?;
+        }
 
         if let Ok(location) = self.esi.group_location().get_location(player_id).await {
             let player_location = location.solar_system_id;
@@ -251,7 +261,7 @@ impl EsiManager {
         }
     }
 
-    pub async fn token_valid(&self) -> Result<bool,Error> {
+    pub async fn valid_token(&self) -> Result<bool,Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("token_expired");
         let mut result = false;
@@ -268,33 +278,34 @@ impl EsiManager {
         Ok(result)
     }
 
-    pub async fn refresh_token(&mut self, refresh_token: String) -> Result<i32,Error> {
-        let _ = self.esi.refresh_access_token(Some(&refresh_token)).await;
+    pub async fn refresh_token(&mut self, refresh_token: String) -> Result<usize,Error> {
+        if let Ok(()) = self.esi.refresh_access_token(Some(&refresh_token)).await {
+            self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
+            self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
+            self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
+            return PlayerDatabase::update_auth(&self.get_standart_connection()?, &self.auth);
+        }
         Ok(0)
     }
 
-    #[tokio::main]
-    pub async fn get_player_photo(url: &str) -> Result<Option<Vec<u8>>, String> {
+    #[tokio::main(flavor = "current_thread")]
+    pub async fn get_player_photo(url: &str) -> Result<Vec<&u8>, Box<dyn std::error::Error>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_player_photo");
 
         let https = HttpsConnector::new();
-        let client = Client::builder().build::<_, hyper::Body>(https);
+        let client = Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
         let uri = match url.parse::<hyper::Uri>() {
             Ok(parsed_uri) => parsed_uri,
             Err(t_error) => return Err(t_error.to_string() + " > " + url),
         };
-        let mut resp;
-        match client.get(uri).await {
-            Ok(body) => resp = body,
-            Err(t_error) => return Err(t_error.to_string()),
-        }
+        let mut resp = client.get(uri).await?;
         // And now...
-        let mut photo = vec![];
-        while let Some(Ok(chunk)) = resp.body_mut().data().await {
+        let mut photo:Vec<u8> = vec![];
+        while let chunk = &resp.body_mut().data().await? {
             photo.extend_from_slice(&chunk);
         }
-        Ok(Some(photo))
+        Ok(photo)
     }
 
     pub async fn auth_user(
@@ -324,49 +335,50 @@ impl EsiManager {
             //character id
             let split: Vec<&str> = claims.sub.split(':').collect();
             player.id = split[2].parse::<i32>().unwrap();
-            if player.auth.is_some() {
-                player.auth.as_mut().unwrap().token = self.esi.access_token.as_ref().unwrap().to_string();
-                player.auth.as_mut().unwrap().refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
+            if let Ok(false) = self.valid_token().await {
+                self.auth.token = self.esi.access_token.as_ref().unwrap().to_string();
+                self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
                 //expiration Date
-                let expiration = Utc::now().checked_add_signed(TimeDelta::new(self.esi.access_token.as_ref().unwrap().parse::<i64>()?,0).unwrap());
+                let expiration = Utc::now().checked_add_signed(TimeDelta::new(self.esi.access_expiration.unwrap(),0).unwrap());
                 /*let expiration: DateTime<Utc> =
                     DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
                         .unwrap()
                         .into();*/
-                player.auth.as_mut().unwrap().expiration = expiration;
-                self.esi.update_spec().await?;
-
-                let public_info = self
-                    .esi
-                    .group_character()
-                    .get_public_info(player.id)
-                    .await?;
-                let corp_info = self
-                    .esi
-                    .group_corporation()
-                    .get_public_info(public_info.corporation_id)
-                    .await?;
-                let corp = Corporation {
-                    id: public_info.corporation_id,
-                    name: corp_info.name,
-                };
-                player.corp = Some(corp);
-                if let Some(ally_id) = public_info.alliance_id {
-                    let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
-                    let ally = Alliance {
-                        id: ally_id,
-                        name: ally_info.name,
-                    };
-                    player.alliance = Some(ally);
-                }
-                let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
-                player.photo = Some(player_portraits.px128x128.unwrap());
-                let player_location = self.esi.group_location().get_location(player.id).await?;
-                player.location = player_location.solar_system_id;
-                /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
-                        player.photo = Some(photo_vec);
-                }*/
+                self.auth.expiration = expiration;
+                let _ =PlayerDatabase::update_auth(&self.get_standart_connection().unwrap(), &self.auth);
             }
+            self.esi.update_spec().await?;
+            let public_info = self
+                .esi
+                .group_character()
+                .get_public_info(player.id)
+                .await?;
+            let corp_info = self
+                .esi
+                .group_corporation()
+                .get_public_info(public_info.corporation_id)
+                .await?;
+            let corp = Corporation {
+                id: public_info.corporation_id,
+                name: corp_info.name,
+            };
+            player.corp = Some(corp);
+            if let Some(ally_id) = public_info.alliance_id {
+                let ally_info = self.esi.group_alliance().get_info(ally_id).await?;
+                let ally = Alliance {
+                    id: ally_id,
+                    name: ally_info.name,
+                };
+                player.alliance = Some(ally);
+            }
+            let player_portraits = self.esi.group_character().get_portrait(player.id).await?;
+            player.photo = Some(player_portraits.px128x128.unwrap());
+            let player_location = self.esi.group_location().get_location(player.id).await?;
+            player.location = player_location.solar_system_id;
+            /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
+                    player.photo = Some(photo_vec);
+            }*/
+            
             self.write_character(&player)?;
             Ok(Some(player))
         } else {
