@@ -1,32 +1,30 @@
+use hyper::{Method, StatusCode};
+use tokio::runtime::Builder;
+use tokio::sync::mpsc::Sender;
+
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::service::Service;
-use hyper::{Body, Method, StatusCode};
-use hyper::{Request, Response};
+use hyper::{body::Incoming as IncomingBody, Request, Response};
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{Context, Poll};
-use tokio::runtime::Builder;
-use tokio::sync::mpsc::Sender;
 
 static CONFIRM: &[u8] = b"<html><head><title>Telescope login</title><style>body{font-family: monospace;background-color: gray;color: whitesmoke;}</style></head><body><h1>Telescope</h1><p>Logged in!, now you can close this window safely.</p></body></html>";
 static NOT_VALID: &[u8] = b"Invalid Request";
 
-pub struct AuthService {
-    tx: Arc<Sender<(String, String)>>,
+#[derive(Debug, Clone)]
+pub struct AuthService2 {
+    pub tx: Arc<Sender<(String, String)>>,
 }
 
-impl AuthService {}
-
-impl Service<Request<Body>> for AuthService {
-    type Response = Response<Body>;
+impl Service<Request<IncomingBody>> for AuthService2 {
+    type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&self, req: Request<IncomingBody>) -> Self::Future {
         let res = match (req.method(), req.uri().path()) {
             (&Method::GET, "/login") => {
                 let pnq = req.uri().path_and_query();
@@ -55,52 +53,26 @@ impl Service<Request<Body>> for AuthService {
                         });
                         Ok(Response::builder()
                             .status(StatusCode::OK)
-                            .body(CONFIRM.into())
+                            .body(Full::new(Bytes::from_static(CONFIRM)))
                             .unwrap())
                     } else {
                         Ok(Response::builder()
                             .status(StatusCode::UNPROCESSABLE_ENTITY)
-                            .body(NOT_VALID.into())
+                            .body(Full::new(Bytes::from_static(NOT_VALID)))
                             .unwrap())
                     }
                 } else {
                     Ok(Response::builder()
                         .status(StatusCode::UNPROCESSABLE_ENTITY)
-                        .body(NOT_VALID.into())
+                        .body(Full::new(Bytes::from_static(NOT_VALID)))
                         .unwrap())
                 }
             }
             _ => Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::empty())
+                .body(Full::new(Bytes::from_static(NOT_VALID)))
                 .unwrap()),
         };
         Box::pin(async { res })
-    }
-}
-
-pub struct MakeSvc {
-    tx: Arc<Sender<(String, String)>>,
-}
-
-impl MakeSvc {
-    pub fn new(tx: Arc<Sender<(String, String)>>) -> Self {
-        MakeSvc { tx }
-    }
-}
-
-impl<T> Service<T> for MakeSvc {
-    type Response = AuthService;
-    type Error = hyper::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, _: T) -> Self::Future {
-        let atx = Arc::clone(&self.tx);
-        let fut = async move { Ok(AuthService { tx: atx }) };
-        Box::pin(fut)
     }
 }

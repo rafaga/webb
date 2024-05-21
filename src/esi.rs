@@ -1,16 +1,16 @@
 use crate::objects::{Alliance, Character, Corporation};
 use chrono::{TimeDelta, Utc};
-use hyper::body::HttpBody;
+use hyper::body::Body;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
 use rusqlite::vtab::array;
 use rusqlite::*;
 use std::path::Path;
-use hyper_util::client::legacy::connect::HttpConnector;
-use http_body_util::Empty;
+use http_body_util::{BodyExt, Empty};
+use crate::objects::AuthData;
+//use hyper::body::Bytes;
 use bytes::Bytes;
 use hyper_util::{client::legacy::Client, rt::TokioExecutor};
-use crate::objects::AuthData;
 
 #[cfg(feature = "crypted-db")]
 use uuid::Uuid;
@@ -289,22 +289,44 @@ impl EsiManager {
     }
 
     #[tokio::main(flavor = "current_thread")]
-    pub async fn get_player_photo(url: &str) -> Result<Vec<&u8>, Box<dyn std::error::Error>> {
+    pub async fn get_player_photo(url: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_player_photo");
 
+
         let https = HttpsConnector::new();
+        let client = Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
+    
+        let mut res = client.get(url.parse()?).await?;
+        //assert_eq!(res.status(), 200);
+        let mut photo:Vec<u8> = vec![];
+        if res.status() == 200 {
+            while !res.is_end_stream() {
+                if let Some(data) = res.body_mut().frame().await.unwrap().expect("No data").data_mut() {
+                    photo.extend_from_slice(data.as_ref());
+                }
+            }
+        }
+
+        
+        //let a = res.body_mut().frame();
+        /*while let chunk = &res.body_mut().data().await? {
+            photo.extend_from_slice(&chunk);
+        }*/
+
+
+        /*let https = HttpsConnector::new();
         let client = Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
         let uri = match url.parse::<hyper::Uri>() {
             Ok(parsed_uri) => parsed_uri,
             Err(t_error) => return Err(t_error.to_string() + " > " + url),
         };
-        let mut resp = client.get(uri).await?;
+        let mut resp = client.get(uri).await;
         // And now...
         let mut photo:Vec<u8> = vec![];
         while let chunk = &resp.body_mut().data().await? {
             photo.extend_from_slice(&chunk);
-        }
+        }*/
         Ok(photo)
     }
 
