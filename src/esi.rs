@@ -1,5 +1,5 @@
 use crate::objects::{Alliance, Character, Corporation};
-use chrono::{TimeDelta, Utc};
+use chrono::DateTime;
 use hyper::body::Body;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
@@ -267,7 +267,7 @@ impl EsiManager {
         let mut result = false;
         let conn =  self.get_standart_connection()?;
         let auth = PlayerDatabase::select_auth(&conn)?;
-        if !auth.token.is_empty() {
+        if !auth.token.is_empty() && auth.expiration.is_some() && !auth.refresh_token.is_empty() {
             let current_datetime = chrono::Utc::now();
             //if auth.expiration =
             let offset =  auth.expiration.unwrap() - current_datetime;
@@ -361,12 +361,12 @@ impl EsiManager {
                 self.auth.token = self.esi.access_token.as_ref().unwrap().to_string();
                 self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
                 //expiration Date
-                let expiration = Utc::now().checked_add_signed(TimeDelta::new(self.esi.access_expiration.unwrap(),0).unwrap());
+
+                self.auth.expiration = DateTime::from_timestamp_millis(self.esi.access_expiration.unwrap());
                 /*let expiration: DateTime<Utc> =
                     DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
                         .unwrap()
                         .into();*/
-                self.auth.expiration = expiration;
                 let _ =PlayerDatabase::update_auth(&self.get_standart_connection().unwrap(), &self.auth);
             }
             self.esi.update_spec().await?;
@@ -397,9 +397,6 @@ impl EsiManager {
             player.photo = Some(player_portraits.px128x128.unwrap());
             let player_location = self.esi.group_location().get_location(player.id).await?;
             player.location = player_location.solar_system_id;
-            /*if let Some(photo_vec) = self.get_portrait_data(&player_portraits.px64x64.unwrap()).await?{
-                    player.photo = Some(photo_vec);
-            }*/
             
             self.write_character(&player)?;
             Ok(Some(player))

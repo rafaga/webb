@@ -1,6 +1,6 @@
 use crate::esi::Error;
 use crate::objects::{Alliance, AuthData, BasicCatalog, Character, Corporation};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc,SecondsFormat};
 use rusqlite::{Connection, ToSql,params};
 use rusqlite::vtab::array;
 use std::rc::Rc;
@@ -136,8 +136,9 @@ impl PlayerDatabase {
             }
             if field.as_str() == "expiration" {
                 let date_as_string = row.get::<usize,String>(1)?;
-                let utc_dt = DateTime::parse_from_rfc3339(&date_as_string).unwrap();
-                result.expiration =  Some(utc_dt.to_utc());
+                if let Ok(utc_dt) = DateTime::parse_from_str(&date_as_string, "%+"){
+                    result.expiration =  Some(utc_dt.to_utc());
+                }
             }
             if field.as_str() == "refresh_token" {
                 result.refresh_token =  row.get(1)?;
@@ -157,10 +158,10 @@ impl PlayerDatabase {
         } else {
             data.push((String::from("expiration"),String::new()));
         }
-        let mut statement = conn.prepare(&query)?;
         
         let mut rows = 0;
         for item in data {
+            let mut statement = conn.prepare(&query)?;
             let affected_rows = statement.execute(params![item.0,item.1])?;
             rows += affected_rows;
         }
@@ -169,17 +170,17 @@ impl PlayerDatabase {
 
     pub(crate) fn update_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
         let query = String::from("UPDATE metadata SET value = ? WHERE id = ?;");
-        let mut statement = conn.prepare(&query).unwrap();
         let mut data:Vec<(String,String)> = Vec::new();
         data.push((String::from("token"),auth_data.token.clone()));
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
         if let Some(expiration_date) = auth_data.expiration {
-            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+            data.push((String::from("expiration"),expiration_date.to_rfc3339_opts(SecondsFormat::Millis, true)));
         } else {
             data.push((String::from("expiration"),String::new()));
         }
         let mut rows = 0;
         for item in data {
+            let mut statement = conn.prepare(&query).unwrap();
             let affected_rows = statement.execute(params![item.0,item.1])?;
             rows += affected_rows;
         }
