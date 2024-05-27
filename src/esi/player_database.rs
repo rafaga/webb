@@ -82,9 +82,6 @@ impl PlayerDatabase {
                 char.last_logon = utc_dt;
             }
             char.location = row.get::<usize, i32>(6)?;
-            /*if let Ok(auth_data) =  PlayerDatabase::select_auth(conn, char.id) {
-                char.auth=Some(auth_data);
-            }*/
             result.push(char);
         }
         Ok(result)
@@ -100,7 +97,6 @@ impl PlayerDatabase {
         let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
         query += "lastlogon = ?, location = ? WHERE id = ?;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
-        // TODO: Add Auth data 
         let params = rusqlite::params![
             character.name,
             character.alliance.as_ref().unwrap().id,
@@ -118,7 +114,7 @@ impl PlayerDatabase {
         let values = vec![String::from("token"),String::from("expiration"),String::from("refresh_token")];
         let mut result = AuthData::new();
         let query = String::from(
-            "SELECT id, value FROM metadata WHERE id IN rarray(?)",
+            "SELECT id, value FROM metadata WHERE id IN rarray(?1)",
         );
 
         let mut statement = conn.prepare(&query)?;
@@ -150,7 +146,7 @@ impl PlayerDatabase {
     pub(crate) fn insert_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
         let mut data: Vec<(String,String)> = Vec::new();
         let mut query = String::from("INSERT INTO metadata (id,value)");
-        query += " VALUES (?,?)";
+        query += " VALUES (?1,?2)";
         data.push((String::from("token"),auth_data.token.clone()));
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
         if let Some(expiration_date) = auth_data.expiration {
@@ -169,7 +165,7 @@ impl PlayerDatabase {
     }
 
     pub(crate) fn update_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
-        let query = String::from("UPDATE metadata SET value = ? WHERE id = ?;");
+        let query = String::from("UPDATE metadata SET value = ?1 WHERE id = ?2;");
         let mut data:Vec<(String,String)> = Vec::new();
         data.push((String::from("token"),auth_data.token.clone()));
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
@@ -181,7 +177,8 @@ impl PlayerDatabase {
         let mut rows = 0;
         for item in data {
             let mut statement = conn.prepare(&query).unwrap();
-            let affected_rows = statement.execute(params![item.0,item.1])?;
+            let affected_rows = statement.execute(params![item.1,item.0])?;
+            statement.finalize()?;
             rows += affected_rows;
         }
         Ok(rows)

@@ -37,13 +37,20 @@ impl EsiManager {
         // we add the carray module disguised as rarray in rusqlite
         array::load_module(&connection)?;
 
+        let query = "PRAGMA journey_mode=WAL;";
+        let mut statement = connection.prepare(query)?;
+        let _ = statement.execute([])?;
+        
+
         #[cfg(feature = "crypted-db")]
         {
             let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
             let query = ["PRAGMA key = '", uuid.to_string().as_str(), "'"].concat();
             let mut statement = connection.prepare(query.as_str())?;
-            let _ = statement.query([])?;
+            let _ = statement.execute([])?;
         }
+
+        statement.finalize()?;
         Ok(connection)
     }
 
@@ -236,9 +243,12 @@ impl EsiManager {
             let _ = PlayerDatabase::migrate_database();
         } else {
             let conn = obj.get_standart_connection();
-            // cargar jugadores existentes
-            if let Ok(chars) = PlayerDatabase::select_characters(&conn.unwrap(), vec![]) {
+            // load existing players
+            if let Ok(chars) = PlayerDatabase::select_characters(&conn.as_ref().unwrap(), vec![]) {
                 obj.characters = chars;
+                if !obj.characters.is_empty() {
+                    obj.auth = PlayerDatabase::select_auth(&conn.as_ref().unwrap()).expect("Invalid Authetication data");
+                }
             }
         }
 
@@ -250,7 +260,7 @@ impl EsiManager {
         puffin::profile_scope!("esi_get_location");
 
         if !self.valid_token().await? {
-            self.refresh_token(self.auth.refresh_token.clone()).await?;
+            self.refresh_token().await?;
         }
 
         if let Ok(location) = self.esi.group_location().get_location(player_id).await {
@@ -265,12 +275,13 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("token_expired");
         let mut result = false;
-        let conn =  self.get_standart_connection()?;
-        let auth = PlayerDatabase::select_auth(&conn)?;
-        if !auth.token.is_empty() && auth.expiration.is_some() && !auth.refresh_token.is_empty() {
+        if self.esi.access_expiration.is_none() || self.esi.access_token.is_none() || self.esi.refresh_token.is_none() {
+            return Ok(result);
+        }
+        if !self.auth.token.is_empty() && self.auth.expiration.is_some() && !self.auth.refresh_token.is_empty() {
             let current_datetime = chrono::Utc::now();
             //if auth.expiration =
-            let offset =  auth.expiration.unwrap() - current_datetime;
+            let offset =  self.auth.expiration.unwrap() - current_datetime;
             if offset.num_seconds() >= 0 {
                 result = true;
             }
@@ -278,8 +289,8 @@ impl EsiManager {
         Ok(result)
     }
 
-    pub async fn refresh_token(&mut self, refresh_token: String) -> Result<usize,Error> {
-        if let Ok(()) = self.esi.refresh_access_token(Some(&refresh_token)).await {
+    pub async fn refresh_token(&mut self) -> Result<usize,Error> {
+        if let Ok(()) = self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await {
             self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
             self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
             self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
@@ -307,26 +318,6 @@ impl EsiManager {
                 }
             }
         }
-
-        
-        //let a = res.body_mut().frame();
-        /*while let chunk = &res.body_mut().data().await? {
-            photo.extend_from_slice(&chunk);
-        }*/
-
-
-        /*let https = HttpsConnector::new();
-        let client = Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
-        let uri = match url.parse::<hyper::Uri>() {
-            Ok(parsed_uri) => parsed_uri,
-            Err(t_error) => return Err(t_error.to_string() + " > " + url),
-        };
-        let mut resp = client.get(uri).await;
-        // And now...
-        let mut photo:Vec<u8> = vec![];
-        while let chunk = &resp.body_mut().data().await? {
-            photo.extend_from_slice(&chunk);
-        }*/
         Ok(photo)
     }
 
@@ -367,7 +358,9 @@ impl EsiManager {
                     DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
                         .unwrap()
                         .into();*/
-                let _ =PlayerDatabase::update_auth(&self.get_standart_connection().unwrap(), &self.auth);
+                if let Ok(conn) =  self.get_standart_connection() {
+                    let _ =PlayerDatabase::update_auth(&conn, &self.auth);
+                }
             }
             self.esi.update_spec().await?;
             let public_info = self
