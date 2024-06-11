@@ -255,19 +255,19 @@ impl EsiManager {
         obj
     }
 
-    pub async fn get_location(&mut self, player_id: i32) -> Result<i32, Error> {
+    pub async fn get_location(&mut self, player_id: i32) -> Result<i32, ()> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
 
-        if !self.valid_token().await? {
-            self.refresh_token().await?;
+        if let Ok(false) = self.valid_token().await {
+            return Err(());
         }
 
         if let Ok(location) = self.esi.group_location().get_location(player_id).await {
             let player_location = location.solar_system_id;
             Ok(player_location)
         } else {
-            Ok(0)
+            return Err(());
         }
     }
 
@@ -289,14 +289,16 @@ impl EsiManager {
         Ok(result)
     }
 
-    pub async fn refresh_token(&mut self) -> Result<usize,Error> {
-        if let Ok(()) = self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await {
-            self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
-            self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
-            self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
-            return PlayerDatabase::update_auth(&self.get_standart_connection()?, &self.auth);
+    pub async fn refresh_token(&mut self) -> Result<usize,EsiError> {
+        self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await?;
+        self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
+        self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
+        self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
+        if let Ok(conn) = self.get_standart_connection() {
+            PlayerDatabase::update_auth(&conn, &self.auth);
         }
-        Ok(0)
+        return Ok(0);
+        
     }
 
     #[tokio::main(flavor = "current_thread")]
