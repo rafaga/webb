@@ -251,32 +251,34 @@ impl EsiManager {
                 }
             }
         }
-
         obj
     }
 
-    pub async fn get_location(&mut self, player_id: i32) -> Result<i32, ()> {
+    pub async fn get_location(&mut self, player_id: i32) -> Result<i32, String> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_get_location");
 
-        if let Ok(false) = self.valid_token().await {
-            return Err(());
+        if !self.valid_token().await {
+            return Err(String::from("Invalid Token"));
         }
 
-        if let Ok(location) = self.esi.group_location().get_location(player_id).await {
-            let player_location = location.solar_system_id;
-            Ok(player_location)
-        } else {
-            return Err(());
+        match self.esi.group_location().get_location(player_id).await {
+            Ok(location) => {
+                let player_location = location.solar_system_id;
+                return Ok(player_location);
+            },
+            Err(t_error) => {
+                return Err(t_error.to_string());
+            }
         }
     }
 
-    pub async fn valid_token(&self) -> Result<bool,Error> {
+    pub async fn valid_token(&self) -> bool {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("token_expired");
         let mut result = false;
         if self.esi.access_expiration.is_none() || self.esi.access_token.is_none() || self.esi.refresh_token.is_none() {
-            return Ok(result);
+            return result;
         }
         if !self.auth.token.is_empty() && self.auth.expiration.is_some() && !self.auth.refresh_token.is_empty() {
             let current_datetime = chrono::Utc::now();
@@ -286,16 +288,20 @@ impl EsiManager {
                 result = true;
             }
         }
-        Ok(result)
+        result
     }
 
-    pub async fn refresh_token(&mut self) -> Result<usize,EsiError> {
-        self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await?;
+    pub async fn refresh_token(&mut self) -> Result<usize,String> {
+        if let Err(t_error) = self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await {
+            return Err(t_error.to_string());
+        }
         self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
         self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
         self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
         if let Ok(conn) = self.get_standart_connection() {
-            PlayerDatabase::update_auth(&conn, &self.auth);
+            if let Err(t_error) = PlayerDatabase::update_auth(&conn, &self.auth){
+                return Err(t_error.to_string());
+            }
         }
         return Ok(0);
         
@@ -350,7 +356,7 @@ impl EsiManager {
             //character id
             let split: Vec<&str> = claims.sub.split(':').collect();
             player.id = split[2].parse::<i32>().unwrap();
-            if let Ok(false) = self.valid_token().await {
+            if !self.valid_token().await {
                 self.auth.token = self.esi.access_token.as_ref().unwrap().to_string();
                 self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
                 //expiration Date
