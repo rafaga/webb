@@ -28,7 +28,7 @@ pub struct EsiManager {
 }
 
 impl EsiManager {
-    pub(crate) fn get_standart_connection(&self) -> Result<Connection, Error> {
+    pub(crate) fn get_standard_connection(&self) -> Result<Connection, Error> {
         let mut flags = OpenFlags::default();
         flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
         flags.set(OpenFlags::SQLITE_OPEN_FULL_MUTEX, true);
@@ -58,7 +58,7 @@ impl EsiManager {
     pub fn write_alliance(&mut self, alliance: &Alliance) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_alliance");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
         let rows = if !players.is_empty() {
@@ -75,7 +75,7 @@ impl EsiManager {
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_alliance");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::select_alliance(&conn, id_ally)?
@@ -88,7 +88,7 @@ impl EsiManager {
     pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_alliance");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::delete_alliance(&conn, id_ally)?
@@ -102,7 +102,7 @@ impl EsiManager {
     pub fn write_corporation(&mut self, corp: &Corporation) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_corporation");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
@@ -119,7 +119,7 @@ impl EsiManager {
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_corporation");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result = if let Some(id_corp) = corporation_vec {
             PlayerDatabase::select_corporation(&conn, id_corp)?
@@ -135,7 +135,7 @@ impl EsiManager {
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_corporation");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result = if let Some(id_ally) = corporation_vec {
             PlayerDatabase::delete_corporation(&conn, id_ally)?
@@ -150,9 +150,9 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_write_character");
 
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
-        // first we need to assure that Corporation and alliance existys on database
+        // first we need to assure that Corporation and alliance exists on database
         if let Some(corp) = &char.corp {
             let _ = self.write_corporation(corp)?;
         }
@@ -174,7 +174,7 @@ impl EsiManager {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_read_characters");
 
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result;
         if let Some(id_chars) = char_vec {
@@ -188,7 +188,7 @@ impl EsiManager {
     pub fn remove_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
         puffin::profile_scope!("esi_remove_character");
-        let conn = self.get_standart_connection().unwrap();
+        let conn = self.get_standard_connection().unwrap();
 
         let result = if let Some(id_chars) = char_vec {
             PlayerDatabase::delete_characters(&conn, id_chars)?
@@ -238,11 +238,11 @@ impl EsiManager {
         let temp_path = Path::new(&obj.path);
         if !temp_path.exists() || !temp_path.is_file() {
             // TODO: migration database schema goes here
-            let conn = obj.get_standart_connection();
+            let conn = obj.get_standard_connection();
             let _ = PlayerDatabase::create_database(&conn.unwrap());
             let _ = PlayerDatabase::migrate_database();
         } else {
-            let conn = obj.get_standart_connection();
+            let conn = obj.get_standard_connection();
             // load existing players
             if let Ok(chars) = PlayerDatabase::select_characters(&conn.as_ref().unwrap(), vec![]) {
                 obj.characters = chars;
@@ -298,7 +298,7 @@ impl EsiManager {
         self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
         self.auth.expiration = chrono::Utc::now().checked_add_signed(chrono::TimeDelta::seconds(self.esi.access_expiration.unwrap()));
         self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
-        if let Ok(conn) = self.get_standart_connection() {
+        if let Ok(conn) = self.get_standard_connection() {
             if let Err(t_error) = PlayerDatabase::update_auth(&conn, &self.auth){
                 return Err(t_error.to_string());
             }
@@ -366,7 +366,7 @@ impl EsiManager {
                     DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
                         .unwrap()
                         .into();*/
-                if let Ok(conn) =  self.get_standart_connection() {
+                if let Ok(conn) =  self.get_standard_connection() {
                     let _ =PlayerDatabase::update_auth(&conn, &self.auth);
                 }
             }
