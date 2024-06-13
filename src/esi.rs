@@ -284,7 +284,7 @@ impl EsiManager {
             let current_datetime = chrono::Utc::now();
             //if auth.expiration =
             let offset =  self.auth.expiration.unwrap() - current_datetime;
-            if offset.num_seconds() >= 0 {
+            if offset.num_seconds() >= 20 {
                 result = true;
             }
         }
