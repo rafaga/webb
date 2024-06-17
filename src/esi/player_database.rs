@@ -1,6 +1,6 @@
 use crate::esi::Error;
 use crate::objects::{Alliance, AuthData, BasicCatalog, Character, Corporation};
-use chrono::{DateTime, Utc,SecondsFormat};
+use chrono::{DateTime, Utc};
 use rusqlite::{Connection, ToSql,params};
 use rusqlite::vtab::array;
 use std::rc::Rc;
@@ -132,7 +132,8 @@ impl PlayerDatabase {
             }
             if field.as_str() == "expiration" {
                 let date_as_string = row.get::<usize,String>(1)?;
-                if let Ok(utc_dt) = DateTime::parse_from_str(&date_as_string, "%+"){
+                
+                if let Ok(utc_dt) = DateTime::parse_from_rfc3339(&date_as_string){
                     result.expiration =  Some(utc_dt.to_utc());
                 }
             }
@@ -170,7 +171,7 @@ impl PlayerDatabase {
         data.push((String::from("token"),auth_data.token.clone()));
         data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
         if let Some(expiration_date) = auth_data.expiration {
-            data.push((String::from("expiration"),expiration_date.to_rfc3339_opts(SecondsFormat::Millis, true)));
+            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
         } else {
             data.push((String::from("expiration"),String::new()));
         }
