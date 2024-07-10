@@ -36,9 +36,9 @@ rusqlite = { version = "0.31.0", features = ["bundled-sqlcipher", "backup", "blo
 rusqlite = { version = "0.31.0", features = ["bundled-sqlcipher-vendored-openssl", "backup", "blob", "array"] }
 
 #Not compiling WASM
-[target.'cfg(not(wasm))'.dependencies]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 uuid = { version = "1.9.1", features = ["v4", "v5"], optional = true }
 
 #compiling WASM
-[target.'cfg(wasm)'.dependencies]
+[target.'cfg(target_arch = "wasm32")'.dependencies]
 uuid = { version = "1.9.1", features = ["v4", "v5", "js"], optional = true }
