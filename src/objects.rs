@@ -18,11 +18,20 @@ pub struct AuthData {
 
 impl AuthData{
     pub fn new() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         AuthData {
             token: String::new(),
             expiration: None,
             refresh_token: String::new()
         }
+    }
+}
+
+impl Default for AuthData {
+    fn default() -> Self {
+         Self::new()
     }
 }
 
@@ -39,6 +48,9 @@ pub struct Character {
 
 impl Character {
     pub fn new() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         Character {
             id: 0,
             name: String::new(),
@@ -65,6 +77,9 @@ pub struct Corporation {
 
 impl Corporation {
     pub fn new() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         Corporation {
             id: 0,
             name: String::new(),
@@ -74,6 +89,9 @@ impl Corporation {
 
 impl Default for Corporation {
     fn default() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         Self::new()
     }
 }
@@ -82,10 +100,16 @@ impl BasicCatalog for Corporation {
     type Output = i32;
 
     fn id(&self) -> Self::Output {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         self.id
     }
 
     fn name(&self) -> &str {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         &self.name
     }
 }
@@ -98,6 +122,9 @@ pub struct Alliance {
 
 impl Alliance {
     pub fn new() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         Alliance {
             id: 0,
             name: String::new(),
@@ -107,6 +134,9 @@ impl Alliance {
 
 impl Default for Alliance {
     fn default() -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         Self::new()
     }
 }
@@ -115,10 +145,16 @@ impl BasicCatalog for Alliance {
     type Output = i32;
 
     fn id(&self) -> Self::Output {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         self.id
     }
 
     fn name(&self) -> &str {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         &self.name
     }
 }
