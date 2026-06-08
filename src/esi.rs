@@ -1,22 +1,37 @@
+use crate::objects::AuthData;
 use crate::objects::{Alliance, Character, Corporation};
 use chrono::DateTime;
+use http_body_util::{BodyExt, Empty};
 use hyper::body::Body;
 use hyper_tls::HttpsConnector;
 use rfesi::prelude::*;
 use rusqlite::vtab::array;
 use rusqlite::*;
 use std::path::Path;
-use http_body_util::{BodyExt, Empty};
-use crate::objects::AuthData;
 //use hyper::body::Bytes;
 use bytes::Bytes;
 use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 
-#[cfg(feature = "crypted-db")]
-use uuid::Uuid;
+//#[cfg(feature = "crypted-db")]
+//use uuid::Uuid;
+
+#[cfg(all(target_os = "windows", feature = "crypted-db"))]
+use windows::{Storage::Streams::DataReader, System::Profile::SystemIdentification};
+
+#[cfg(all(target_os = "macos", feature = "crypted-db"))]
+use objc2_core_foundation::{CFAllocator, CFString};
+
+#[cfg(all(target_os = "macos", feature = "crypted-db"))]
+use objc2_io_kit::{
+    IOObjectRelease, IORegistryEntryCreateCFProperty, IOServiceGetMatchingService,
+    IOServiceMatching, kIOMainPortDefault,
+};
 
 use self::player_database::PlayerDatabase;
 pub mod player_database;
+
+#[cfg(feature = "crypted-db")]
+const FALLBACK_UNIQUE_ID: &str = "t313/sc0p3";
 
 #[derive(Clone)]
 pub struct EsiManager {
@@ -29,6 +44,9 @@ pub struct EsiManager {
 
 impl EsiManager {
     pub(crate) fn get_standard_connection(&self) -> Result<Connection, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         let mut flags = OpenFlags::default();
         flags.set(OpenFlags::SQLITE_OPEN_NO_MUTEX, false);
         flags.set(OpenFlags::SQLITE_OPEN_FULL_MUTEX, true);
@@ -40,24 +58,96 @@ impl EsiManager {
         let query = "PRAGMA journey_mode=WAL;";
         let mut statement = connection.prepare(query)?;
         let _ = statement.execute([])?;
-        
 
         #[cfg(feature = "crypted-db")]
         {
-            let uuid = Uuid::new_v5(&Uuid::NAMESPACE_OID, "telescope".as_bytes());
-            let query = ["PRAGMA key = '", uuid.to_string().as_str(), "'"].concat();
+            #[cfg(target_os = "windows")]
+            let value_txt = self.get_windows_unique_id().unwrap();
+            #[cfg(target_os = "macos")]
+            let value_txt = self.get_macos_unique_id().unwrap();
+            #[cfg(target_os = "linux")]
+            let value_txt = self.get_linux_unique_id().unwrap();
+            //let uuid = Uuid::new_v5(&Uuid::NAMESPACE_DNS, value_txt.as_bytes());
+            //let query = ["PRAGMA key = '", uuid.to_string().as_str(), "'"].concat();
+            let query = ["PRAGMA key = '", value_txt.as_str(), "'"].concat();
             let mut statement = connection.prepare(query.as_str())?;
-            let _ = statement.execute([])?;
+
+            let _ = statement.query([])?;
         }
 
         statement.finalize()?;
         Ok(connection)
     }
 
+    #[cfg(all(target_os = "macos", feature = "crypted-db"))]
+    fn get_macos_unique_id(&self) -> Result<String, String> {
+        // macOS unique ID
+        unsafe {
+            // 1. Obtener el entry del IORegistry para la plataforma
+            let matching = IOServiceMatching(c"IOPlatformExpertDevice".as_ptr())
+                .map(|matching| (&matching).into());
+            let entry = IOServiceGetMatchingService(kIOMainPortDefault, matching);
+
+            if entry != 0 {
+                // 2. Construir la clave como CFString
+                let key = CFString::from_str("IOPlatformSerialNumber");
+
+                // 3. Llamar a IORegistryEntryCreateCFProperty
+                let cf_value = IORegistryEntryCreateCFProperty(
+                    entry,
+                    Some(&key),
+                    None::<&CFAllocator>, // usar el allocator por defecto
+                    0,                    // options = 0
+                );
+
+                // 4. Liberar el entry
+                IOObjectRelease(entry);
+
+                // 5. Convertir el CFType resultante a CFString y luego a String de Rust
+                if let Some(retained) = cf_value
+                    && let Ok(cf_str) = retained.downcast::<CFString>()
+                {
+                    return Ok(cf_str.to_string());
+                }
+            }
+        }
+        Err(String::from(FALLBACK_UNIQUE_ID))
+    }
+
+    #[cfg(all(target_os = "linux", feature = "crypted-db"))]
+    fn get_linux_unique_id(&self) -> Result<String, String> {
+        // Placeholder implementation for Linux unique ID
+        Ok(String::from(FALLBACK_UNIQUE_ID))
+    }
+
+    #[cfg(all(target_os = "windows", feature = "crypted-db"))]
+    fn get_windows_unique_id(&self) -> Result<String, String> {
+        // this get a unique ID for the user, and its used to generate a unique key
+        // for the database encryption
+        match SystemIdentification::GetSystemIdForPublisher() {
+            Ok(info) => {
+                if let Ok(id_buffer) = info.Id()
+                    && let Ok(reader) = DataReader::FromBuffer(&id_buffer)
+                {
+                    // reading bytes from ID IBuffer
+                    if let Ok(length) = id_buffer.Length() {
+                        let mut bytes = vec![0u8; length as usize];
+                        if let Ok(()) = reader.ReadBytes(&mut bytes) {
+                            return Ok(String::from_utf8_lossy(&bytes).into_owned());
+                        }
+                    }
+                }
+                Err(String::from(FALLBACK_UNIQUE_ID))
+            }
+            Err(_) => Err(String::from(FALLBACK_UNIQUE_ID)),
+        }
+    }
+
     // Alliance
     pub fn write_alliance(&mut self, alliance: &Alliance) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_write_alliance");
+        puffin::profile_function!();
+
         let conn = self.get_standard_connection().unwrap();
 
         let players = PlayerDatabase::select_alliance(&conn, vec![alliance.id])?;
@@ -74,8 +164,14 @@ impl EsiManager {
         alliance_vec: Option<Vec<i32>>,
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_read_alliance");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::select_alliance(&conn, id_ally)?
@@ -87,8 +183,14 @@ impl EsiManager {
 
     pub fn remove_alliance(&mut self, alliance_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_remove_alliance");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result = if let Some(id_ally) = alliance_vec {
             PlayerDatabase::delete_alliance(&conn, id_ally)?
@@ -101,8 +203,14 @@ impl EsiManager {
     // Corporation
     pub fn write_corporation(&mut self, corp: &Corporation) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_write_corporation");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let corps = PlayerDatabase::select_corporation(&conn, vec![corp.id])?;
         let rows = if !corps.is_empty() {
@@ -118,8 +226,14 @@ impl EsiManager {
         corporation_vec: Option<Vec<i32>>,
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_read_corporation");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result = if let Some(id_corp) = corporation_vec {
             PlayerDatabase::select_corporation(&conn, id_corp)?
@@ -134,8 +248,14 @@ impl EsiManager {
         corporation_vec: Option<Vec<i32>>,
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_remove_corporation");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result = if let Some(id_ally) = corporation_vec {
             PlayerDatabase::delete_corporation(&conn, id_ally)?
@@ -148,9 +268,15 @@ impl EsiManager {
     //Characters
     pub fn write_character(&mut self, char: &Character) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_write_character");
+        puffin::profile_function!();
 
-        let conn = self.get_standard_connection().unwrap();
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
+        //let conn = self.get_standard_connection().unwrap();
 
         // first we need to assure that Corporation and alliance exists on database
         if let Some(corp) = &char.corp {
@@ -172,9 +298,14 @@ impl EsiManager {
 
     pub fn read_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<Vec<Character>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_read_characters");
+        puffin::profile_function!();
 
-        let conn = self.get_standard_connection().unwrap();
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result;
         if let Some(id_chars) = char_vec {
@@ -187,8 +318,14 @@ impl EsiManager {
 
     pub fn remove_characters(&mut self, char_vec: Option<Vec<i32>>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_remove_character");
-        let conn = self.get_standard_connection().unwrap();
+        puffin::profile_function!();
+
+        let conn = match self.get_standard_connection() {
+            Ok(connection) => connection,
+            Err(error) => {
+                return Err(error);
+            }
+        };
 
         let result = if let Some(id_chars) = char_vec {
             PlayerDatabase::delete_characters(&conn, id_chars)?
@@ -206,6 +343,9 @@ impl EsiManager {
         scope: Vec<&str>,
         database_path: String,
     ) -> Self {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         #[cfg(not(feature = "native-auth-flow"))]
         let esi = EsiBuilder::new()
             .user_agent(useragent)
@@ -237,17 +377,21 @@ impl EsiManager {
         // Path needs to be checked before invoking rusqlite to be effective
         let temp_path = Path::new(&obj.path);
         if !temp_path.exists() || !temp_path.is_file() {
-            // TODO: migration database schema goes here
-            let conn = obj.get_standard_connection();
-            let _ = PlayerDatabase::create_database(&conn.unwrap());
-            let _ = PlayerDatabase::migrate_database();
-        } else {
-            let conn = obj.get_standard_connection();
+            let conn = obj
+                .get_standard_connection()
+                .expect("Error on ESIManager new() -> get_standard_connection()");
+            if let Ok(true) = PlayerDatabase::create_database(&conn) {
+                let _ = PlayerDatabase::migrate_database();
+            }
+            let _ = conn.close();
+        }
+        if let Ok(conn) = obj.get_standard_connection() {
             // load existing players
-            if let Ok(chars) = PlayerDatabase::select_characters(&conn.as_ref().unwrap(), vec![]) {
+            if let Ok(chars) = PlayerDatabase::select_characters(&conn, vec![]) {
                 obj.characters = chars;
                 if !obj.characters.is_empty() {
-                    obj.auth = PlayerDatabase::select_auth(&conn.as_ref().unwrap()).expect("Invalid Authetication data");
+                    obj.auth =
+                        PlayerDatabase::select_auth(&conn).expect("Invalid Authetication data");
                 }
             }
         }
@@ -256,7 +400,7 @@ impl EsiManager {
 
     pub async fn get_location(&mut self, player_id: i32) -> Result<i32, String> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_get_location");
+        puffin::profile_function!();
 
         if !self.valid_token().await {
             return Err(String::from("Invalid Token"));
@@ -265,63 +409,81 @@ impl EsiManager {
         match self.esi.group_location().get_location(player_id).await {
             Ok(location) => {
                 let player_location = location.solar_system_id;
-                return Ok(player_location);
-            },
-            Err(t_error) => {
-                return Err(t_error.to_string());
+                Ok(player_location)
             }
+            Err(t_error) => Err(t_error.to_string()),
         }
     }
 
     pub async fn valid_token(&self) -> bool {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("token_expired");
+        puffin::profile_function!();
+
         let mut result = false;
-        if self.esi.access_expiration.is_none() || self.esi.access_token.is_none() || self.esi.refresh_token.is_none() {
+        if self.esi.access_expiration.is_none()
+            || self.esi.access_token.is_none()
+            || self.esi.refresh_token.is_none()
+        {
             return result;
         }
-        if !self.auth.token.is_empty() && self.auth.expiration.is_some() && !self.auth.refresh_token.is_empty() {
+
+        if !self.auth.token.is_empty() && !self.auth.refresh_token.is_empty() {
             let current_datetime = chrono::Utc::now();
             //if auth.expiration =
-            let offset =  self.auth.expiration.unwrap() - current_datetime;
-            if offset.num_seconds()>= 20 {
-                result = true;
+            if let Some(expire) = self.auth.expiration {
+                let offset = expire - current_datetime;
+                if offset.num_seconds() >= 20 {
+                    result = true;
+                }
             }
         }
         result
     }
 
-    pub async fn refresh_token(&mut self) -> Result<usize,String> {
-        if let Err(t_error) = self.esi.refresh_access_token(Some(&self.auth.refresh_token)).await {
+    pub async fn refresh_token(&mut self) -> Result<usize, String> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
+        if let Err(t_error) = self
+            .esi
+            .refresh_access_token(Some(&self.auth.refresh_token))
+            .await
+        {
             return Err(t_error.to_string());
         }
         self.auth.token = self.esi.access_token.as_ref().unwrap().clone();
-        self.auth.expiration = chrono::DateTime::from_timestamp_millis(self.esi.access_expiration.unwrap());
+        self.auth.expiration =
+            chrono::DateTime::from_timestamp_millis(self.esi.access_expiration.unwrap());
         self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().clone();
-        if let Ok(conn) = self.get_standard_connection() {
-            if let Err(t_error) = PlayerDatabase::update_auth(&conn, &self.auth){
-                return Err(t_error.to_string());
-            }
+        if let Ok(conn) = self.get_standard_connection()
+            && let Err(t_error) = PlayerDatabase::update_auth(&conn, &self.auth)
+        {
+            return Err(t_error.to_string());
         }
-        return Ok(0);
-        
+        Ok(0)
     }
 
     #[tokio::main(flavor = "current_thread")]
     pub async fn get_player_photo(url: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_get_player_photo");
-
+        puffin::profile_function!();
 
         let https = HttpsConnector::new();
         let client = Client::builder(TokioExecutor::new()).build::<_, Empty<Bytes>>(https);
-    
+
         let mut res = client.get(url.parse()?).await?;
         //assert_eq!(res.status(), 200);
-        let mut photo:Vec<u8> = vec![];
+        let mut photo: Vec<u8> = vec![];
         if res.status() == 200 {
             while !res.is_end_stream() {
-                if let Some(data) = res.body_mut().frame().await.unwrap().expect("No data").data_mut() {
+                if let Some(data) = res
+                    .body_mut()
+                    .frame()
+                    .await
+                    .unwrap()
+                    .expect("No data")
+                    .data_mut()
+                {
                     photo.extend_from_slice(data.as_ref());
                 }
             }
@@ -335,7 +497,7 @@ impl EsiManager {
         oauth_data: (String, String),
     ) -> Result<Option<Character>, Box<dyn std::error::Error + Send + Sync>> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("esi_auth_user");
+        puffin::profile_function!();
 
         #[cfg(not(feature = "native-auth-flow"))]
         let verifier = None;
@@ -348,7 +510,6 @@ impl EsiManager {
             .authenticate(oauth_data.0.as_str(), verifier)
             .await?;
         if let Some(claims) = claims_option {
-            
             let mut player = Character::new();
             //let data = claims.unwrap();
             //character name
@@ -359,15 +520,12 @@ impl EsiManager {
             if !self.valid_token().await {
                 self.auth.token = self.esi.access_token.as_ref().unwrap().to_string();
                 self.auth.refresh_token = self.esi.refresh_token.as_ref().unwrap().to_string();
-                //expiration Date
 
-                self.auth.expiration = DateTime::from_timestamp_millis(self.esi.access_expiration.unwrap());
-                /*let expiration: DateTime<Utc> =
-                    DateTime::parse_from_str(self.esi.access_token.as_ref().unwrap(), "%s")
-                        .unwrap()
-                        .into();*/
-                if let Ok(conn) =  self.get_standard_connection() {
-                    let _ =PlayerDatabase::update_auth(&conn, &self.auth);
+                //expiration Date
+                self.auth.expiration =
+                    DateTime::from_timestamp_millis(self.esi.access_expiration.unwrap());
+                if let Ok(conn) = self.get_standard_connection() {
+                    let _ = PlayerDatabase::update_auth(&conn, &self.auth);
                 }
             }
             self.esi.update_spec().await?;
@@ -398,7 +556,7 @@ impl EsiManager {
             player.photo = Some(player_portraits.px128x128.unwrap());
             let player_location = self.esi.group_location().get_location(player.id).await?;
             player.location = player_location.solar_system_id;
-            
+
             self.write_character(&player)?;
             Ok(Some(player))
         } else {

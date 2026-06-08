@@ -1,8 +1,8 @@
 use crate::esi::Error;
 use crate::objects::{Alliance, AuthData, BasicCatalog, Character, Corporation};
 use chrono::{DateTime, Utc};
-use rusqlite::{Connection, ToSql,params};
 use rusqlite::vtab::array;
+use rusqlite::{Connection, ToSql, params};
 use std::rc::Rc;
 
 pub(crate) struct PlayerDatabase {}
@@ -10,7 +10,7 @@ pub(crate) struct PlayerDatabase {}
 impl PlayerDatabase {
     pub(crate) fn create_database(conn: &Connection) -> Result<bool, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("create_database");
+        puffin::profile_function!();
 
         //Character Public Data
         let mut query =
@@ -49,7 +49,7 @@ impl PlayerDatabase {
         ids: Vec<i32>,
     ) -> Result<Vec<Character>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("select_characters");
+        puffin::profile_function!();
 
         let mut result = Vec::new();
         let mut query = String::from(
@@ -57,7 +57,10 @@ impl PlayerDatabase {
         );
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
-            query = format!("SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char WHERE id IN ({})", vars);
+            query = format!(
+                "SELECT id, name, corporation, alliance, portrait, lastLogon, location FROM char WHERE id IN ({})",
+                vars
+            );
         }
         let mut statement = conn.prepare(&query)?;
         let mut rows = statement.query(rusqlite::params_from_iter(ids))?;
@@ -93,29 +96,42 @@ impl PlayerDatabase {
         character: &Character,
     ) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("update_characters");
-        let mut query = String::from("UPDATE char SET name = ?, alliance = ?, corporation = ?, ");
-        query += "lastlogon = ?, location = ? WHERE id = ?;";
+        puffin::profile_function!();
+        let mut query = String::from("UPDATE char SET name = :name, corporation = :corp,");
+        if character.alliance.is_some() {
+            query += " alliance = :alliance,";
+        }
+        query += "lastlogon = :last_logon, location = :location WHERE id = :id;";
         let mut statement = conn.prepare(query.as_str()).unwrap();
-        let params = rusqlite::params![
-            character.name,
-            character.alliance.as_ref().unwrap().id,
-            character.corp.as_ref().unwrap().id,
-            character.last_logon.to_string(),
-            character.location,
-            character.id
+
+        let fecha = character.last_logon.to_rfc3339();
+        let mut params: Vec<(&str, &dyn ToSql)> = vec![
+            (":name", &character.name),
+            (":corp", &character.corp.as_ref().unwrap().id),
+            (":last_logon", &fecha),
+            (":location", &character.location),
+            (":id", &character.id),
         ];
-        let rows: usize = statement.execute(params)?;
+
+        if let Some(alliance) = character.alliance.as_ref() {
+            params.push((":alliance", &alliance.id));
+        }
+        let rows: usize = statement.execute(params.as_slice())?;
         //PlayerDatabase::update_auth(conn, character.id, character.auth.as_ref().unwrap())?;
         Ok(rows)
     }
 
     pub(crate) fn select_auth(conn: &Connection) -> Result<AuthData, Error> {
-        let values = vec![String::from("token"),String::from("expiration"),String::from("refresh_token")];
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
+        let values = vec![
+            String::from("token"),
+            String::from("expiration"),
+            String::from("refresh_token"),
+        ];
         let mut result = AuthData::new();
-        let query = String::from(
-            "SELECT id, value FROM metadata WHERE id IN rarray(?1)",
-        );
+        let query = String::from("SELECT id, value FROM metadata WHERE id IN rarray(?1)");
 
         let mut statement = conn.prepare(&query)?;
         let id_list: array::Array = Rc::new(
@@ -126,77 +142,82 @@ impl PlayerDatabase {
         );
         let mut rows = statement.query([id_list])?;
         while let Some(row) = rows.next()? {
-            let field:String = row.get(0)?;
+            let field: String = row.get(0)?;
             if field.as_str() == "token" {
-                result.token =  row.get(1)?;
+                result.token = row.get(1)?;
             }
             if field.as_str() == "expiration" {
-                let date_as_string = row.get::<usize,String>(1)?;
-                
-                if let Ok(utc_dt) = DateTime::parse_from_rfc3339(&date_as_string){
-                    result.expiration =  Some(utc_dt.to_utc());
+                let date_as_string = row.get::<usize, String>(1)?;
+
+                if let Ok(utc_dt) = DateTime::parse_from_rfc3339(&date_as_string) {
+                    result.expiration = Some(utc_dt.to_utc());
                 }
             }
             if field.as_str() == "refresh_token" {
-                result.refresh_token =  row.get(1)?;
+                result.refresh_token = row.get(1)?;
             }
         }
         Ok(result)
     }
 
-    pub(crate) fn insert_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
-        let mut data: Vec<(String,String)> = Vec::new();
+    pub(crate) fn insert_auth(conn: &Connection, auth_data: &AuthData) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
+        let mut data: Vec<(String, String)> = Vec::new();
         let mut query = String::from("INSERT INTO metadata (id,value)");
         query += " VALUES (?1,?2)";
-        data.push((String::from("token"),auth_data.token.clone()));
-        data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
+        data.push((String::from("token"), auth_data.token.clone()));
+        data.push((
+            String::from("refresh_token"),
+            auth_data.refresh_token.clone(),
+        ));
         if let Some(expiration_date) = auth_data.expiration {
-            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+            data.push((String::from("expiration"), expiration_date.to_rfc3339()));
         } else {
-            data.push((String::from("expiration"),String::new()));
+            data.push((String::from("expiration"), String::new()));
         }
-        
+
         let mut rows = 0;
         for item in data {
             let mut statement = conn.prepare(&query)?;
-            let affected_rows = statement.execute(params![item.0,item.1])?;
+            let affected_rows = statement.execute(params![item.0, item.1])?;
             rows += affected_rows;
         }
         Ok(rows)
     }
 
-    pub(crate) fn update_auth(conn: &Connection, auth_data:&AuthData) -> Result<usize, Error> {
+    pub(crate) fn update_auth(conn: &Connection, auth_data: &AuthData) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         let query = String::from("UPDATE metadata SET value = ?1 WHERE id = ?2;");
-        let mut data:Vec<(String,String)> = Vec::new();
-        data.push((String::from("token"),auth_data.token.clone()));
-        data.push((String::from("refresh_token"),auth_data.refresh_token.clone()));
+        let mut data: Vec<(String, String)> = Vec::new();
+        data.push((String::from("token"), auth_data.token.clone()));
+        data.push((
+            String::from("refresh_token"),
+            auth_data.refresh_token.clone(),
+        ));
         if let Some(expiration_date) = auth_data.expiration {
-            data.push((String::from("expiration"),expiration_date.to_rfc3339()));
+            data.push((String::from("expiration"), expiration_date.to_rfc3339()));
         } else {
-            data.push((String::from("expiration"),String::new()));
+            data.push((String::from("expiration"), String::new()));
         }
         let mut rows = 0;
         for item in data {
             let mut statement = conn.prepare(&query).unwrap();
-            let affected_rows = statement.execute(params![item.1,item.0])?;
+            let affected_rows = statement.execute(params![item.1, item.0])?;
             statement.finalize()?;
             rows += affected_rows;
         }
         Ok(rows)
     }
 
-    pub(crate) fn delete_auth(conn: &Connection) -> Result<usize, Error> {
-        let query = "DELETE FROM metadata WHERE id IN ('token','expiration','refresh_token');";
-        let mut statement = conn.prepare(query).unwrap();
-        let affected_rows = statement.execute([])?;
-        Ok(affected_rows)
-    }
-
     pub(crate) fn insert_character(conn: &Connection, player: &Character) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("insert_character");
+        puffin::profile_function!();
 
-        let mut query = String::from("INSERT INTO char (id,");
+        /*let mut query = String::from("INSERT INTO char (id,");
         query += "name,corporation,alliance,portrait,lastLogon,location) VALUES (?,?,?,?,?,?,?)";
         let mut statement = conn.prepare(query.as_str())?;
         let dt = player.last_logon.to_rfc3339();
@@ -213,12 +234,53 @@ impl PlayerDatabase {
         }
         statement.raw_bind_parameter(6, dt)?;
         statement.raw_bind_parameter(7, player.location)?;
-        let rows = statement.raw_execute()?;
+        let rows = statement.raw_execute()?;*/
+
+        let fecha = player.last_logon.to_rfc3339();
+        let mut query = [
+            String::from("INSERT INTO char (id,name,lastLogon,location"),
+            String::from(" VALUES (:id,:name,:last_logon,:location)"),
+        ];
+        let mut params: Vec<(&str, &dyn ToSql)> = vec![
+            (":name", &player.name),
+            (":last_logon", &fecha),
+            (":location", &player.location),
+            (":id", &player.id),
+        ];
+
+        if let Some(corp) = player.corp.as_ref() {
+            query[0] += ",corporation";
+            query[1] += ",:corp";
+            params.push((":corp", &corp.id));
+        }
+
+        if let Some(alliance) = player.alliance.as_ref() {
+            query[0] += ",alliance";
+            query[1] += ",:alliance";
+            params.push((":alliance", &alliance.id));
+        }
+
+        if let Some(photo) = player.photo.as_ref() {
+            query[0] += ",portrait";
+            query[1] += ",:portrait";
+            params.push((":portrait", photo));
+        }
+
+        query[0] += ")";
+        query[1] += ")";
+        let mut statement = conn
+            .prepare((query[0].clone() + &query[1]).as_str())
+            .unwrap();
+        let rows: usize = statement.execute(params.as_slice())?;
+
         //PlayerDatabase::insert_auth(conn,player.id,player.auth.as_ref().unwrap())?;
         Ok(rows)
     }
 
     fn repeat_vars(count: usize) -> String {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         assert_ne!(count, 0);
         let mut s = "?,".repeat(count);
         // Remove trailing comma
@@ -227,10 +289,16 @@ impl PlayerDatabase {
     }
 
     pub(crate) fn migrate_database() -> Result<bool, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+        // TODO: migration database schema goes here
         Ok(true)
     }
 
     pub(crate) fn delete_characters(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::delete_general(conn, "char", ids)
     }
 
@@ -240,7 +308,7 @@ impl PlayerDatabase {
         ids: Vec<i32>,
     ) -> Result<Vec<Corporation>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("select_corporation");
+        puffin::profile_function!();
 
         let mut result = Vec::new();
         let mut query = String::from("SELECT id,name FROM corp");
@@ -264,6 +332,9 @@ impl PlayerDatabase {
         conn: &Connection,
         corp: &Corporation,
     ) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::update_catalog(conn, "corp", corp)
     }
 
@@ -271,10 +342,16 @@ impl PlayerDatabase {
         conn: &Connection,
         corp: &Corporation,
     ) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::insert_catalog(conn, "corp", corp)
     }
 
     pub(crate) fn delete_corporation(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::delete_general(conn, "corp", ids)
     }
 
@@ -284,7 +361,7 @@ impl PlayerDatabase {
         ids: Vec<i32>,
     ) -> Result<Vec<Alliance>, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("select_alliance");
+        puffin::profile_function!();
 
         let mut result = Vec::new();
         let mut query = String::from("SELECT id,name FROM alliance");
@@ -305,20 +382,29 @@ impl PlayerDatabase {
     }
 
     pub(crate) fn update_alliance(conn: &Connection, ally: &Alliance) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::update_catalog(conn, "alliance", ally)
     }
 
     pub(crate) fn insert_alliance(conn: &Connection, ally: &Alliance) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::insert_catalog(conn, "alliance", ally)
     }
     pub(crate) fn delete_alliance(conn: &Connection, ids: Vec<i32>) -> Result<usize, Error> {
+        #[cfg(feature = "puffin")]
+        puffin::profile_function!();
+
         PlayerDatabase::delete_general(conn, "alliance", ids)
     }
 
     // function to delete values
     fn delete_general(conn: &Connection, table: &str, ids: Vec<i32>) -> Result<usize, Error> {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("delete_general");
+        puffin::profile_function!(table);
 
         if !ids.is_empty() {
             let vars = PlayerDatabase::repeat_vars(ids.len());
@@ -344,7 +430,7 @@ impl PlayerDatabase {
         <B as BasicCatalog>::Output: ToSql,
     {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("insert_catalog");
+        puffin::profile_function!(table);
 
         let query = format!("INSERT INTO {} (id,name) VALUES (?,?);", table);
         let mut statement = conn.prepare(&query)?;
@@ -363,7 +449,7 @@ impl PlayerDatabase {
         <B as BasicCatalog>::Output: ToSql,
     {
         #[cfg(feature = "puffin")]
-        puffin::profile_scope!("update_catalog");
+        puffin::profile_function!(table);
 
         let query = format!("UPDATE {} SET name = ? WHERE id = ?;", table);
         let mut statement = conn.prepare(&query)?;
